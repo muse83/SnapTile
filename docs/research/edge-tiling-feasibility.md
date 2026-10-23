@@ -218,11 +218,11 @@ frame position.
   zone is the strip between monitor top and `work_area.y`, i.e. the top bar. The preview rect for
   halves is computed from the work area. If the extension defines "edge" at the physical monitor
   edge instead, zones above the top bar need explicit handling.
-- Per-monitor edges: with monitors side by side the inner edges are not screen boundaries; stock
-  tiling still triggers at every monitor's own left/right work-area edge. A pointer crossing from
-  monitor A to monitor B must not trigger on the shared edge unless that is wanted;
-  `global.display.get_monitor_neighbor_index()` can tell whether an edge has a neighbour
-  (public, `display.h`).
+- Per-monitor edges: every monitor gets all its zones on its own, including edges that touch
+  another monitor (maintainer decision, 2026-10-23; stock tiling also triggers at every
+  monitor's own left/right work-area edge). A pointer crossing from monitor A to monitor B
+  therefore passes through both monitors' zones and may show a preview on the way; this is
+  wanted. SnapTile does not look at monitor neighbours at all.
 - Per-monitor cm to px: compute pixel zone width per monitor (monitors can differ in DPI and scale).
 - Work areas change when the top bar changes, on fullscreen apps, or monitor hot-plug: listen to
   `Main.layoutManager` `monitors-changed` and recompute (signal name from `layout.js`, not
