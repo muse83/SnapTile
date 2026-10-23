@@ -286,9 +286,11 @@ items 1, 3 (partly), 4, 5 and 8 of "Could not verify".
   after the call and the new one within 100 ms, so anything that depends on the final size has
   to wait.
 - **Minimum size larger than the Tile.** Mutter leaves the window where the drag put it (the
-  request has no effect at all, and no `size-changed` or `position-changed` follows). Fix: after
-  a short wait, move the window with `move_frame` to the Tile's top left, pulled back into the
-  work area (`anchoredOrigin` in `src/tileDecision.js`).
+  request has no effect at all, and no `size-changed` or `position-changed` follows). Fix: move the
+  window with `move_frame` to the Tile's top left, pulled back into the work area
+  (`anchoredOrigin` in `src/tileDecision.js`). This works directly inside the `grab-op-end`
+  handler when the size is already final, and again from `size-changed` when it changes later;
+  no timer is needed.
 - **Pointer during a drag.** Polling `global.get_pointer()` every 30 ms works on both versions.
 - **Monitor sizes.** The headless virtual monitor reports no `width-mm` over `GetCurrentState`,
   so the 96 DPI fallback applies there. Real millimetres, rotated monitors and the swap of

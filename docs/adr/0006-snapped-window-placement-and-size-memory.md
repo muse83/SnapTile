@@ -10,8 +10,11 @@ are recorded here so they are not only in code comments.
   hung on the Tile's top left corner and may reach beyond the Tile. It is moved back only as
   far as needed to lie fully inside the work area of that monitor (a window larger than the
   work area sits at its top left). The Tile itself and the preview are never changed.
-  Mutter leaves such a window where the drag put it, so SnapTile moves it once the size has
-  settled (150 ms after the drop).
+  Mutter leaves such a window where the drag put it, so SnapTile moves it itself. It does so
+  right after the drop (when the size is already final) and again on every later size change,
+  until the window is dragged out, resized by the user, or the extension is disabled. There is
+  no waiting time: the window itself tells when its size changed. Only windows larger than the
+  Tile are touched; smaller ones stay where Mutter put them.
 - **Size from before tiling.** Dragging a tiled window out gives it the size it had before
   SnapTile tiled it, and the pointer keeps its relative place along the window. The size is
   remembered once per tiling; resizing or keyboard-moving a tiled window forgets it, and
@@ -25,6 +28,8 @@ are recorded here so they are not only in code comments.
 
 - Shrinking the Tile to the window's minimum size, or placing the window centred in the Tile.
   Rejected: the Tile rectangle stays fixed (ticket) and top left is the predictable place.
+- Waiting a fixed time (first built with 150 ms) and then placing the window. Rejected by the
+  maintainer: the time was a guess and a slow application could still be resizing afterwards.
 - Restoring the earlier size only when the drag ends. Rejected: the window would stay tile-sized
   while the user moves it.
 - Listening for the Escape key. Rejected: the key is not delivered to the shell while Mutter
@@ -32,7 +37,7 @@ are recorded here so they are not only in code comments.
 
 ## Consequences
 
-- The 150 ms wait is measured only in the headless shell (windows settled within 100 ms). A
-  slow real application could still be resizing after it; revisit if that shows up.
+- A tiled window that later grows beyond its Tile by itself (for example a terminal changing
+  its font) is pulled back to the Tile's top left corner each time.
 - Applications that ignore the requested size (fixed grids such as terminals) end up anchored
   by the same rule, not exactly in the Tile.

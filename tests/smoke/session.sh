@@ -104,6 +104,9 @@ button() { # button PRESSED|RELEASED
     ev "globalThis.__dev.notify_button(imports.gi.GLib.get_monotonic_time(), 1, imports.gi.Clutter.ButtonState.$1), 1" >/dev/null
     sleep 0.3
 }
+resize_window() { # resize_window X Y WIDTH HEIGHT: asks Mutter for a new frame, like an application would
+    ev "global.get_window_actors().map(a => a.meta_window).filter(w => w.title === 'probe-window')[0].move_resize_frame(true, $1, $2, $3, $4), 1" >/dev/null
+}
 press_escape() {
     for state in PRESSED RELEASED; do
         ev "globalThis.__kbd.notify_keyval(imports.gi.GLib.get_monotonic_time(), 0xff1b, imports.gi.Clutter.KeyState.$state), 1" >/dev/null
@@ -280,6 +283,19 @@ start_probe 900x500
 snap "top-left quarter: window anchored at the Tile's top left" 3 3 0,32,640,344 0,32,900,500
 snap "bottom-right quarter: window pulled back onto the screen" 1276 716 640,376,640,344 380,220,900,500
 
+echo "A tiled window that grows beyond its Tile:"
+start_probe
+snap "top-left quarter" 3 3 0,32,640,344
+resize_window 100 100 700 400
+sleep 0.5
+check "it is hung on the Tile's top left corner again" '"[0,32,700,400]"' "$RECT"
+ev "$DISABLE" >/dev/null
+resize_window 100 100 720 420
+sleep 0.5
+check "after disabling, SnapTile no longer touches it" '"[100,100,720,420]"' "$RECT"
+ev "$ENABLE" >/dev/null
+kill $WINDOW_PID 2>/dev/null
+
 echo "Disabling SnapTile during and right after a drag:"
 # Records the timers SnapTile starts and still has pending (not removed, not finished).
 ev '(() => { const GLib = imports.gi.GLib; const add = GLib.timeout_add, remove = GLib.source_remove; globalThis.__timers = new Set(); GLib.timeout_add = function (priority, ms, fn) { const ours = new Error().stack.includes("dragSnap.js"); const id = add.call(GLib, priority, ms, ours ? () => { const again = fn(); if (!again) globalThis.__timers.delete(id); return again; } : fn); if (ours) globalThis.__timers.add(id); return id; }; GLib.source_remove = function (id) { globalThis.__timers.delete(id); return remove.call(GLib, id); }; return 1; })()' >/dev/null
@@ -302,10 +318,10 @@ check "the window is not snapped after disabling" '"[400,300]"' "$SIZE"
 ev "$ENABLE" >/dev/null
 grab_window
 drag_to 3 3
-ev "globalThis.__dev.notify_button(imports.gi.GLib.get_monotonic_time(), 1, imports.gi.Clutter.ButtonState.RELEASED), 1" >/dev/null # no pause: the settle timer takes 150 ms
-check "the drop has a timer pending while the window settles" 1 "$TIMERS"
-ev "$DISABLE" >/dev/null # while the snapped window is still settling
-check "no timer is left when disabled right after a drop" 0 "$TIMERS"
+button RELEASED
+check "a drop starts no timer" 0 "$TIMERS"
+ev "$DISABLE" >/dev/null
+check "no timer is left after a drop and after disabling" 0 "$TIMERS"
 sleep 1
 check "extension is inactive after disabling right after a drop" $INACTIVE "$STATE"
 check "no preview left after disabling right after a drop" '"[]"' "$PREVIEW"

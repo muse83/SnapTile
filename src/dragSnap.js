@@ -11,9 +11,6 @@ import {TilePreview} from './tilePreview.js';
 // How often the pointer is read during a drag. The shell offers no pointer signal while
 // Mutter holds the window grab, so it is polled (see docs/research/edge-tiling-feasibility.md).
 const POLL_INTERVAL_MS = 30;
-// How long a snapped window gets to reach its final size. Windows settled within 100 ms in
-// every smoke test; see docs/adr/0006-snapped-window-placement-and-size-memory.md.
-const SETTLE_MS = 150;
 
 /**
  * Drag a window to an Edge zone, see the Tile preview, release to snap. Dragging a tiled
@@ -25,7 +22,7 @@ export class DragSnap {
         this._memory = new SizeMemory();
         this._monitorSizes = new MonitorSizes();
         this._preview = new TilePreview();
-        this._tiled = new Map(); // window id -> {window, unmanagedId, settleId}
+        this._tiled = new Map(); // window id -> {window, unmanagedId, sizeChangedId}
         this._drag = null; // {window, state, sourceId} while a move is running
         this._signals = [];
     }
@@ -51,7 +48,7 @@ export class DragSnap {
         this._stopPolling();
         this._preview.destroy();
         for (const entry of this._tiled.values()) {
-            this._stopSettling(entry);
+            this._stopAnchoring(entry);
             entry.window.disconnect(entry.unmanagedId);
         }
         this._tiled.clear();
@@ -126,27 +123,33 @@ export class DragSnap {
             window.unmaximize();
         window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
         // A window with a minimum size larger than the Tile ends up bigger than asked for,
-        // and Mutter then leaves it where the drag put it. Once the size has settled, hang
-        // it on the Tile's top left corner (the Tile itself stays as it is).
-        this._stopSettling(entry);
-        entry.settleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SETTLE_MS, () => {
-            entry.settleId = 0;
-            const settled = window.get_frame_rect();
-            const origin = anchoredOrigin(rect, settled, workArea);
-            if (origin.x !== settled.x || origin.y !== settled.y)
+        // and Mutter then leaves it where the drag put it. So hang a window that is too big
+        // on the Tile's top left corner (the Tile itself stays as it is): right away, when
+        // the size is already final, and again whenever the size changes, until it is
+        // dragged out or the extension is disabled. No guess about how long that takes.
+        this._stopAnchoring(entry);
+        const anchor = () => {
+            if (window.is_maximized() || window.is_fullscreen())
+                return;
+            const current = window.get_frame_rect();
+            if (current.width <= rect.width && current.height <= rect.height)
+                return;
+            const origin = anchoredOrigin(rect, current, workArea);
+            if (origin.x !== current.x || origin.y !== current.y)
                 window.move_frame(true, origin.x, origin.y);
-            return GLib.SOURCE_REMOVE;
-        });
+        };
+        entry.sizeChangedId = window.connect('size-changed', anchor);
+        anchor();
     }
 
     _workAreaOf(window) {
         return plainRect(Main.layoutManager.getWorkAreaForMonitor(window.get_monitor()));
     }
 
-    _stopSettling(entry) {
-        if (entry.settleId) {
-            GLib.source_remove(entry.settleId);
-            entry.settleId = 0;
+    _stopAnchoring(entry) {
+        if (entry.sizeChangedId) {
+            entry.window.disconnect(entry.sizeChangedId);
+            entry.sizeChangedId = 0;
         }
     }
 
@@ -168,7 +171,7 @@ export class DragSnap {
         const id = window.get_id();
         if (!this._tiled.has(id)) {
             const unmanagedId = window.connect('unmanaged', () => this._untrack(window));
-            this._tiled.set(id, {window, unmanagedId, settleId: 0});
+            this._tiled.set(id, {window, unmanagedId, sizeChangedId: 0});
         }
         return this._tiled.get(id);
     }
@@ -178,7 +181,7 @@ export class DragSnap {
         const id = window.get_id();
         const entry = this._tiled.get(id);
         if (entry) {
-            this._stopSettling(entry);
+            this._stopAnchoring(entry);
             window.disconnect(entry.unmanagedId);
             this._tiled.delete(id);
         }
