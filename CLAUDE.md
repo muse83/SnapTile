@@ -12,7 +12,7 @@ The dev environment is a VM running Arch Linux with CLI only (no desktop, no GUI
 - `Screenshoots_Magnet/` holds screenshots of the macOS app Magnet, showing the snap behaviour
   SnapTile should have (preview frame while dragging a window, then the window snaps to it).
   They illustrate the target look; how areas are triggered is not decided and is a separate
-  ticket. The `._*` files in it are macOS junk.
+  ticket.
 
 ## Agent skills
 
