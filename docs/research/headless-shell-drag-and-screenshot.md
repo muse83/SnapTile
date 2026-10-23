@@ -51,9 +51,17 @@ Both work on both versions, with the same code.
 - Not tested yet: the Tile preview widget in a screenshot, and drags starting on a window that is
   already tiled.
 
-## Unverified
+## Settings label (verified 2026-10-23)
 
-- The notification names Settings → Multitasking → "Active Screen Edges" as the switch for
-  `org.gnome.mutter edge-tiling`. The setting key is verified; the label in the Settings app is
-  from memory and was not checked (the container has no Settings app). It also gives the
-  `gsettings` command, which is exact.
+The notification names Settings → Multitasking → General → "Active Screen Edges". Checked
+against primary sources:
+
+- GNOME Settings source (`panels/multitasking/cc-multitasking-panel.c`, `main`) binds the
+  `edge-tiling` key of `org.gnome.mutter` to the switch of the "Active Screen Edges" row.
+- GNOME Help, "Enable or disable window resizing at screen edges"
+  (https://help.gnome.org/gnome-help/multitasking-screen-edges.html): Settings → Multitasking →
+  General → "Active Screen Edges".
+
+Not checked on a running GNOME 50/51 desktop (the dev containers have no Settings app); the
+label is English and may differ in other languages. The notification also gives the exact
+`gsettings` command.
