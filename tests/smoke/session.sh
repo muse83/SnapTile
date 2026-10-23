@@ -313,11 +313,11 @@ gsettings set org.gnome.desktop.interface enable-animations false
 ev 'Main.overview.hide(), 1' >/dev/null
 sleep 1
 red_at() { python3 "$(dirname "$0")/pixels.py" "$1" "$2" "$3" | cut -d' ' -f1; } # red channel at FILE X Y
-look_of() { # look_of FILE X Y...: W for a window pixel (red 204), D for the bare desktop (red below 100), ? otherwise
+look_of() { # look_of FILE X Y...: W for a window pixel (red 150 or more), D for the bare desktop (red below 100), ? otherwise
     local file=$1 value; shift
     while [ $# -gt 1 ]; do
         value=$(red_at "$file" "$1" "$2"); shift 2
-        if [ "$value" = 204 ]; then echo -n W; elif [ "$value" -lt 100 ]; then echo -n D; else echo -n '?'; fi
+        if [ "$value" -ge 150 ]; then echo -n W; elif [ "$value" -lt 100 ]; then echo -n D; else echo -n '?'; fi
     done
 }
 corner_checks() { # corner_checks <description> <screenshot> <round|square>: all four corners of the probe window
@@ -397,24 +397,22 @@ far=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png 380 300)
 kill $WINDOW_PID 2>/dev/null
 gsettings set org.gnome.desktop.interface enable-animations true
 
-echo "Window look: margin between and around tiled windows"
-# Plain frameless windows have no title bar to grab, so they are placed with the same call
-# SnapTile uses for a snap; the dragging itself is checked above.
-place_window() { # place_window TITLE X Y WIDTH HEIGHT
-    ev "global.get_window_actors().map(a => a.meta_window).filter(w => w.title === '$1')[0].move_resize_frame(true, $2, $3, $4, $5), 1" >/dev/null
-}
-# Window 1 is "probe-window", window 2 is "probe-second".
+echo "Window look: margin between and around tiled windows (two real drags, then pixels)"
+# Window 1 is "probe-window", window 2 is "probe-second". Both have a title bar and are dragged
+# into the two halves like a user would; the pixels are read from a screenshot afterwards.
 FRAMES='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.title.startsWith("probe")).map(w => { const r = w.get_frame_rect(); return [w.title === "probe-window" ? 1 : 2, r.x, r.y, r.width, r.height]; }).sort())'
-PROBE_PLAIN=1 start_probe
-PROBE_PLAIN=1 PROBE_TITLE=probe-second WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >/tmp/smoke-window2.log 2>&1 &
+start_probe
+snap "left half (window 1)" 3 360 0,32,640,688
+PROBE_TITLE=probe-second WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >/tmp/smoke-window2.log 2>&1 &
 SECOND_PID=$!
 sleep 4
-place_window probe-window 0 32 640 688
-place_window probe-second 640 32 640 688
-sleep 1
+FIRST_RECT=$RECT
+RECT=${RECT//probe-window/probe-second} # the drag helpers now work on window 2
+snap "right half (window 2)" 1276 360 640,32,640,688
+RECT=$FIRST_RECT
 check "the two windows touch: their frames are exactly the two halves" '"[[1,0,32,640,688],[2,640,32,640,688]]"' "$FRAMES"
 take_shot /tmp/pair.png >/dev/null
-across=$(for x in 2 3 636 637 642 643 1276 1277; do look_of /tmp/pair.png $x 400; done)
+across=$(for x in 2 3 636 637 642 643 1276 1277; do look_of /tmp/pair.png $x 500; done)
 [ "$across" = DWWDDWWD ] \
     && pass "side by side: 3 px to the screen edge, 6 px between the windows, 3 px to the other edge" \
     || fail "side by side (columns 2,3,636,637,642,643,1276,1277: want DWWDDWWD, got $across)"
@@ -422,11 +420,16 @@ down=$(for y in 34 35 716 717; do look_of /tmp/pair.png 300 $y; done)
 [ "$down" = DWWD ] \
     && pass "3 px below the top bar and 3 px above the bottom of the work area" \
     || fail "top and bottom (rows 34,35,716,717: want DWWD, got $down)"
-# Floating: the look moves nothing and repels nothing.
-place_window probe-second 300 100 400 300
-place_window probe-window 500 150 400 300
+# Floating: drag window 2 out of its Tile to a place that overlaps window 1. The look moves
+# nothing and repels nothing: it sits exactly where the pointer put it.
+RECT=${RECT//probe-window/probe-second}
+grab_window
+drag_to 700 300
+button RELEASED
 sleep 1
-check "floating windows overlap where they are put, nothing pushes them apart" '"[[1,500,150,400,300],[2,300,100,400,300]]"' "$FRAMES"
+RECT=$FIRST_RECT
+DROPPED='(() => { const frame = n => global.get_window_actors().map(a => a.meta_window).find(w => w.title === n).get_frame_rect(); const one = frame("probe-window"), two = frame("probe-second"); return JSON.stringify([[one.x, one.y, one.width, one.height], two.width, two.height, two.x < one.x + one.width, two.x <= 700 && 700 < two.x + two.width && two.y <= 300 && 300 < two.y + two.height]); })()'
+check "a window dropped over another one: its earlier size, over the other window, under the pointer, nothing pushes it away" '"[[0,32,640,688],400,300,true,true]"' "$DROPPED"
 kill $SECOND_PID 2>/dev/null
 kill $WINDOW_PID 2>/dev/null
 sleep 1
