@@ -273,3 +273,27 @@ non-default `org.gnome.mutter` key are not addressed by the written rules.
 7. Full call chain `meta_compositor_show_tile_preview` to the Shell signal (plugin layer).
 8. The `monitors-changed` signal name on `Main.layoutManager` and the `Meta.Window.unmaximize` signature in the
    GJS binding of each version.
+
+## Verified while building drag to snap (2026-10-23, GNOME Shell 50.4 and 51.1)
+
+Run in the headless shell (`tests/smoke/run.sh`); same behaviour on both versions. These close
+items 1, 3 (partly), 4, 5 and 8 of "Could not verify".
+
+- **Window API.** `Meta.Window.is_maximized()` and `unmaximize()` (no argument) exist on both;
+  `get_maximized()` does not. `Meta.GrabOp.MOVING` compares equal with `===`.
+  `Main.layoutManager` emits `monitors-changed`.
+- **`move_resize_frame` is a request.** `get_frame_rect()` still shows the old frame right
+  after the call and the new one within 100 ms, so anything that depends on the final size has
+  to wait.
+- **Minimum size larger than the Tile.** Mutter leaves the window where the drag put it (the
+  request has no effect at all, and no `size-changed` or `position-changed` follows). Fix: after
+  a short wait, move the window with `move_frame` to the Tile's top left, pulled back into the
+  work area (`anchoredOrigin` in `src/tileDecision.js`).
+- **Pointer during a drag.** Polling `global.get_pointer()` every 30 ms works on both versions.
+- **Monitor sizes.** The headless virtual monitor reports no `width-mm` over `GetCurrentState`,
+  so the 96 DPI fallback applies there. Real millimetres, rotated monitors and the swap of
+  width and height are not covered by any test.
+- **Hot corner.** A pointer left in a screen corner after a drop opens the Overview and the
+  next simulated drag then fails; smoke tests end on a corner test last for that reason.
+- **Not covered.** Cancelling a drag with Escape still ends in a snap if the pointer sits in
+  a zone (Mutter emits the same `grab-op-end`); not tested, candidate for a follow-up.

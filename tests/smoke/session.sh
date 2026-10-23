@@ -27,13 +27,19 @@ check() { # check <description> <expected> <js expression>
 gsettings set org.gnome.shell enabled-extensions "['helper@snaptile.test']"
 gsettings set org.gnome.shell disable-user-extensions false
 
-gnome-shell --headless --wayland --no-x11 --virtual-monitor 1280x720 >"$SHELL_LOG" 2>&1 &
-SHELL_PID=$!
+start_shell() { # start_shell <log file> <virtual monitor size>...
+    local log=$1; shift
+    local args=()
+    for size in "$@"; do args+=(--virtual-monitor "$size"); done
+    gnome-shell --headless --wayland --no-x11 "${args[@]}" >"$log" 2>&1 &
+    SHELL_PID=$!
+    for _ in $(seq 40); do
+        ev 1 >/dev/null 2>&1 && break
+        sleep 0.5
+    done
+}
 
-for _ in $(seq 40); do
-    ev 1 >/dev/null 2>&1 && break
-    sleep 0.5
-done
+start_shell "$SHELL_LOG" 1280x720
 
 echo "GNOME Shell $(gnome-shell --version | sed 's/GNOME Shell //')"
 
@@ -88,7 +94,6 @@ RECT='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w
 check "client window appears at its default place" '"[440,226,400,300]"' "$RECT"
 
 # Virtual pointer inside the shell: real input events, handled by Mutter like a mouse.
-ev 'globalThis.__dev = global.stage.context.get_backend().get_default_seat().create_virtual_device(imports.gi.Clutter.InputDeviceType.POINTER_DEVICE), globalThis.__ops = [], global.display.connect("grab-op-begin", (d, w, op) => globalThis.__ops.push(["begin", op])), global.display.connect("grab-op-end", (d, w, op) => globalThis.__ops.push(["end", op])), 1' >/dev/null
 move() { # the pointer position only settles after the second motion event to a point
     for _ in 1 2; do
         ev "globalThis.__dev.notify_absolute_motion(imports.gi.GLib.get_monotonic_time(), $1, $2), 1" >/dev/null
@@ -99,8 +104,12 @@ button() { # button PRESSED|RELEASED
     ev "globalThis.__dev.notify_button(imports.gi.GLib.get_monotonic_time(), 1, imports.gi.Clutter.ButtonState.$1), 1" >/dev/null
     sleep 0.3
 }
-move 32 14; button PRESSED; button RELEASED # the first click after start is needed before clients get input
-sleep 1
+setup_pointer() { # a virtual pointer for this shell, recording the window grabs it causes
+    ev 'globalThis.__dev = global.stage.context.get_backend().get_default_seat().create_virtual_device(imports.gi.Clutter.InputDeviceType.POINTER_DEVICE), globalThis.__ops = [], global.display.connect("grab-op-begin", (d, w, op) => globalThis.__ops.push(["begin", op])), global.display.connect("grab-op-end", (d, w, op) => globalThis.__ops.push(["end", op])), 1' >/dev/null
+    move 32 14; button PRESSED; button RELEASED # the first click after start is needed before clients get input
+    sleep 1
+}
+setup_pointer
 move 640 240; button PRESSED
 for step in "620 220" "500 180" "300 120" "100 60" "20 20"; do move $step; done
 check "dragging the title bar starts a window move" '"begin:1"' 'globalThis.__ops.map(o => o.join(":")).join(",")'
@@ -123,8 +132,150 @@ else
 fi
 kill $WINDOW_PID 2>/dev/null
 
+echo "Drag to snap (SnapTile enabled, GNOME edge tiling off):"
+gsettings set org.gnome.mutter edge-tiling false
+ev "$ENABLE" >/dev/null
+PREVIEW='JSON.stringify(global.window_group.get_children().filter(c => c.style_class === "tile-preview").map(c => [Math.round(c.x), Math.round(c.y), Math.round(c.width), Math.round(c.height)]))'
+SIZE='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.title === "probe-window").map(w => { const r = w.get_frame_rect(); return [r.width, r.height]; })[0])'
+
+start_probe() { # start_probe [WIDTHxHEIGHT]: a fresh probe window, with a minimum size if given
+    kill $WINDOW_PID 2>/dev/null
+    sleep 1
+    PROBE_MIN=${1:-} WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >/tmp/smoke-window.log 2>&1 &
+    WINDOW_PID=$!
+    sleep 4
+}
+grab_window() { # presses the pointer on the probe window's title bar
+    IFS=, read -r fx fy fw fh <<<"$(ev "$RECT" | tr -d '"[]')"
+    GX=$((fx + fw / 2)); GY=$((fy + 14))
+    move $GX $GY; button PRESSED
+}
+drag_to() { # drag_to X Y: moves the held window to a pointer position in three steps
+    move $((GX + 20)) $((GY + 20))
+    move $((($1 + GX) / 2)) $((($2 + GY) / 2))
+    move $1 $2
+    sleep 0.6
+}
+snap() { # snap <description> <pointer x> <pointer y> <expected Tile rectangle x,y,w,h> [expected window x,y,w,h]
+    grab_window
+    drag_to "$2" "$3"
+    local preview frame
+    preview=$(ev "$PREVIEW")
+    button RELEASED
+    sleep 1
+    frame=$(ev "$RECT")
+    local window=${5:-$4}
+    if [ "$preview" = "\"[[$4]]\"" ] && [ "$frame" = "\"[$window]\"" ]; then
+        pass "$1: preview at $4, window at $window"
+    else
+        fail "$1: expected preview [[$4]] and window [$window], got preview $preview and window $frame"
+    fi
+}
+
+start_probe
+# The headless monitor is 1280x720 with a 32 px top bar; it reports no millimetres, so the
+# zones are 1 cm = 38 px deep at the 96 DPI fallback. Pointers sit well inside their zone.
+snap "top-left quarter"     3    3 0,32,640,344
+check "no preview left after release" '"[]"' "$PREVIEW"
+snap "top-right quarter"    1276 3 640,32,640,344
+snap "bottom-left quarter"  3    716 0,376,640,344
+snap "bottom-right quarter" 1276 716 640,376,640,344
+snap "left half"            3    360 0,32,640,688
+snap "right half"           1276 360 640,32,640,688
+snap "top half"             3    70 0,32,1280,344
+snap "bottom half"          3    650 0,376,1280,344
+snap "whole screen"         640  3 0,32,1280,688
+snap "first third"          100  716 0,32,427,688
+snap "middle third"         640  716 427,32,427,688
+snap "last third"           1200 716 854,32,426,688
+
+echo "Merged thirds without releasing:"
+grab_window
+drag_to 100 716
+check "first third" '"[[0,32,427,688]]"' "$PREVIEW"
+move 640 716; sleep 0.6
+check "into the next third: left two-thirds" '"[[0,32,854,688]]"' "$PREVIEW"
+move 1200 716; sleep 0.6
+check "on into the last third: right two-thirds" '"[[427,32,853,688]]"' "$PREVIEW"
+move 640 716; sleep 0.6
+check "back to the middle third: only that third" '"[[427,32,427,688]]"' "$PREVIEW"
+move 640 400; sleep 0.6
+check "leaving the bottom strip hides the preview" '"[]"' "$PREVIEW"
+BEFORE=$(ev "$RECT")
+button RELEASED
+sleep 1
+check "releasing outside every zone leaves the window where it is" "$BEFORE" "$RECT"
+
+echo "Size before tiling:"
+start_probe
+snap "left half" 3 360 0,32,640,688
+grab_window
+drag_to 640 300
+check "dragging a tiled window out restores its earlier size" '"[400,300]"' "$SIZE"
+check "no preview in the middle of the screen" '"[]"' "$PREVIEW"
+button RELEASED
+sleep 1
+snap "left half again" 3 360 0,32,640,688
+ev "$DISABLE" >/dev/null
+ev "$ENABLE" >/dev/null
+grab_window
+drag_to 640 300
+check "a window with no remembered size keeps its own" '"[640,688]"' "$SIZE"
+button RELEASED
+sleep 1
+
+echo "Window that cannot get as small as the Tile (minimum 900x500):"
+start_probe 900x500
+snap "top-left quarter: window anchored at the Tile's top left" 3 3 0,32,640,344 0,32,900,500
+snap "bottom-right quarter: window pulled back onto the screen" 1276 716 640,376,640,344 380,220,900,500
+
+echo "Disabling SnapTile during and right after a drag:"
+start_probe
+grab_window
+drag_to 3 3
+check "preview is shown before disabling" '"[[0,32,640,344]]"' "$PREVIEW"
+ev "$DISABLE" >/dev/null
+sleep 0.3
+check "preview is gone when disabled during the drag" '"[]"' "$PREVIEW"
+move 1276 3
+sleep 0.5
+check "no preview comes back while the drag goes on" '"[]"' "$PREVIEW"
+button RELEASED
+sleep 1
+check "the window is not snapped after disabling" '"[400,300]"' "$SIZE"
+ev "$ENABLE" >/dev/null
+grab_window
+drag_to 3 3
+button RELEASED
+ev "$DISABLE" >/dev/null # while the snapped window is still settling
+sleep 1
+check "extension is inactive after disabling right after a drop" $INACTIVE "$STATE"
+check "no preview left after disabling right after a drop" '"[]"' "$PREVIEW"
+kill $WINDOW_PID 2>/dev/null
+SHELL_LOGS=("$SHELL_LOG")
+
+echo "Two monitors (1280x720 with the top bar, 1024x768 to its right):"
+kill $SHELL_PID 2>/dev/null
+wait $SHELL_PID 2>/dev/null
+sleep 2
+SHELL_LOG_TWO=/tmp/smoke-shell-two.log
+start_shell "$SHELL_LOG_TWO" 1280x720 1024x768
+SHELL_LOGS+=("$SHELL_LOG_TWO")
+ev "$ENABLE" >/dev/null
+check "the shell sees both monitors side by side" '"[[0,0,1280,720],[1280,0,1024,768]]"' \
+    'JSON.stringify(Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]))'
+setup_pointer
+start_probe
+snap "second monitor, left half (its edge touches the first monitor)" 1283 400 1280,0,512,768
+snap "first monitor, right half (the same edge from the other side)" 1276 400 640,32,640,688
+snap "second monitor, whole screen (no top bar there)" 1800 3 1280,0,1024,768
+snap "second monitor, last third" 2100 764 1963,0,341,768
+snap "second monitor, top-left quarter" 1283 3 1280,0,512,384
+
+kill $WINDOW_PID 2>/dev/null
+
 echo "Shell log:"
-if grep -iE "snaptile|JS ERROR" "$SHELL_LOG"; then
+if grep -iE "snaptile|JS ERROR" "${SHELL_LOGS[@]}"; then
     fail "errors mentioning SnapTile or JS ERROR in the shell log"
 else
     pass "no SnapTile or JS errors in the shell log"

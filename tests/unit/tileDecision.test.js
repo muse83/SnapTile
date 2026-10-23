@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {decideTile, pixelsPerCm} from '../../src/tileDecision.js';
+import {anchoredOrigin, decideTile, pixelsPerCm} from '../../src/tileDecision.js';
 
 // 1000 x 600 px on 250 x 150 mm: 40 px per cm, so 1 cm = 40 px and 3 cm = 120 px.
 // The work area leaves 30 px for a top bar.
@@ -278,4 +278,28 @@ test('a large low-density monitor keeps its real size', () => {
     // 1920 px on 1200 mm (about 40 DPI): 16 px per cm, not the 96 DPI fallback
     const tv = {...MON, width: 1920, widthMm: 1200, height: 1080, heightMm: 680};
     assert.equal(pixelsPerCm(tv), 16);
+});
+
+test('the result carries the work area of the monitor the Tile is on', () => {
+    const second = {...MON, x: 1000, workArea: {x: 1000, y: 0, width: 1000, height: 600}};
+    const result = decideTile({pointer: {x: 1500, y: 0}, monitors: [MON, second]});
+    assert.deepEqual(result.workArea, second.workArea);
+});
+
+test('a window that ended up larger than its Tile hangs on the Tile top left corner', () => {
+    const tile = {x: 100, y: 50, width: 300, height: 200};
+    const area = {x: 0, y: 30, width: 1000, height: 570};
+    assert.deepEqual(anchoredOrigin(tile, {width: 500, height: 400}, area), {x: 100, y: 50});
+});
+
+test('a window that would leave the work area is moved back only as far as needed', () => {
+    const tile = {x: 500, y: 315, width: 500, height: 285};
+    const area = {x: 0, y: 30, width: 1000, height: 570};
+    assert.deepEqual(anchoredOrigin(tile, {width: 700, height: 400}, area), {x: 300, y: 200});
+});
+
+test('a window larger than the work area sits at its top left', () => {
+    const tile = {x: 500, y: 315, width: 500, height: 285};
+    const area = {x: 0, y: 30, width: 1000, height: 570};
+    assert.deepEqual(anchoredOrigin(tile, {width: 1200, height: 800}, area), {x: 0, y: 30});
 });

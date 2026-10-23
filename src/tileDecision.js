@@ -93,12 +93,27 @@ function thirdsTile(area, state) {
 }
 
 /**
+ * Where the top left corner of a window goes after it was snapped into `rect` and ended up
+ * `size` big, because it could not get as small as the Tile: at the Tile's top left corner,
+ * moved back only as far as needed to keep the window inside the work area. A window larger
+ * than the work area sits at the work area's top left.
+ */
+export function anchoredOrigin(rect, size, workArea) {
+    const fit = (start, length, areaStart, areaLength) =>
+        Math.max(areaStart, Math.min(start, areaStart + areaLength - length));
+    return {
+        x: fit(rect.x, size.width, workArea.x, workArea.width),
+        y: fit(rect.y, size.height, workArea.y, workArea.height),
+    };
+}
+
+/**
  * @param {object} input
  * @param {{x: number, y: number}} input.pointer pointer position in logical pixels
  * @param {Array<{x, y, width, height, widthMm, heightMm, workArea: {x, y, width, height}}>} input.monitors
  * @param {object|null} [input.state] the `state` of the previous result while the drag
  *   continues; omit or null at the start of a drag
- * @returns {{tile: string, rect: object, look: {radius: number, margin: number}, state: object|null}|null}
+ * @returns {{tile: string, rect: object, workArea: object, look: {radius: number, margin: number}, state: object|null}|null}
  *   null when the pointer is in no Edge zone (the preview is hidden)
  */
 export function decideTile({pointer, monitors, state = null}) {
@@ -153,6 +168,7 @@ export function decideTile({pointer, monitors, state = null}) {
 
     return {
         ...placed,
+        workArea: {...area},
         look: {
             radius: Math.round(CORNER_RADIUS_MM * perCm / 10),
             margin: Math.round(MARGIN_MM * perCm / 10),
