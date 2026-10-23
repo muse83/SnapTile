@@ -275,3 +275,22 @@ test('a large low-density monitor keeps its real size', () => {
     const tv = {...MON, width: 1920, widthMm: 1200, height: 1080, heightMm: 680};
     assert.equal(pixelsPerCm(tv), 16);
 });
+
+test('with three monitors in a row each one works on its own, only shared edges are inactive', () => {
+    const row = [0, 1000, 2000].map(x => ({
+        ...MON, x, workArea: {x, y: 30, width: 1000, height: 570},
+    }));
+    const d = (x, y) => decideTile({pointer: {x, y}, monitors: row})?.tile ?? null;
+    // middle monitor: left and right edges are shared, top and bottom still work
+    assert.equal(d(1000, 300), null);
+    assert.equal(d(1999, 300), null);
+    assert.equal(d(1500, 0), 'full');
+    assert.equal(d(1500, 599), 'third-2');
+    assert.equal(d(1000, 0), 'full');
+    assert.equal(d(1999, 599), 'third-3');
+    // outer monitors keep their outer edges and corners
+    assert.equal(d(0, 300), 'left');
+    assert.equal(d(0, 0), 'top-left');
+    assert.equal(d(2999, 599), 'bottom-right');
+    assert.equal(d(2999, 300), 'right');
+});
