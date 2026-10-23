@@ -1,0 +1,24 @@
+# gnome50: Arch snapshot from 2026-09-14 (GNOME Shell 50.4)
+# gnome51: CachyOS rolling (GNOME Shell 51.x)
+x-dev: &dev
+  volumes:
+    - .:/workspace
+  working_dir: /workspace
+  command: sleep infinity
+
+services:
+  gnome50:
+    <<: *dev
+    image: snaptile-dev:gnome50
+    build:
+      context: docker
+      args:
+        BASE_IMAGE: archlinux
+        ARCHIVE_DATE: 2026/09/14
+  gnome51:
+    <<: *dev
+    image: snaptile-dev:gnome51
+    build:
+      context: docker
+      args:
+        BASE_IMAGE: cachyos/cachyos
