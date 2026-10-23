@@ -295,5 +295,8 @@ items 1, 3 (partly), 4, 5 and 8 of "Could not verify".
   width and height are not covered by any test.
 - **Hot corner.** A pointer left in a screen corner after a drop opens the Overview and the
   next simulated drag then fails; smoke tests end on a corner test last for that reason.
-- **Not covered.** Cancelling a drag with Escape still ends in a snap if the pointer sits in
-  a zone (Mutter emits the same `grab-op-end`); not tested, candidate for a follow-up.
+- **Escape during a drag.** Mutter puts the window back at its starting frame and emits
+  `grab-op-end` at once, while the mouse button is still held; the key press never reaches a
+  stage `captured-event` handler. At that moment `global.get_pointer()` still reports
+  `BUTTON1_MASK` (a real release reports none), which is how SnapTile tells a cancel from a
+  drop (see ADR 0006).

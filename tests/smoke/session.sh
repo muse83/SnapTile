@@ -104,8 +104,14 @@ button() { # button PRESSED|RELEASED
     ev "globalThis.__dev.notify_button(imports.gi.GLib.get_monotonic_time(), 1, imports.gi.Clutter.ButtonState.$1), 1" >/dev/null
     sleep 0.3
 }
+press_escape() {
+    for state in PRESSED RELEASED; do
+        ev "globalThis.__kbd.notify_keyval(imports.gi.GLib.get_monotonic_time(), 0xff1b, imports.gi.Clutter.KeyState.$state), 1" >/dev/null
+        sleep 0.2
+    done
+}
 setup_pointer() { # a virtual pointer for this shell, recording the window grabs it causes
-    ev 'globalThis.__dev = global.stage.context.get_backend().get_default_seat().create_virtual_device(imports.gi.Clutter.InputDeviceType.POINTER_DEVICE), globalThis.__ops = [], global.display.connect("grab-op-begin", (d, w, op) => globalThis.__ops.push(["begin", op])), global.display.connect("grab-op-end", (d, w, op) => globalThis.__ops.push(["end", op])), 1' >/dev/null
+    ev 'globalThis.__dev = global.stage.context.get_backend().get_default_seat().create_virtual_device(imports.gi.Clutter.InputDeviceType.POINTER_DEVICE), globalThis.__kbd = global.stage.context.get_backend().get_default_seat().create_virtual_device(imports.gi.Clutter.InputDeviceType.KEYBOARD_DEVICE), globalThis.__ops = [], global.display.connect("grab-op-begin", (d, w, op) => globalThis.__ops.push(["begin", op])), global.display.connect("grab-op-end", (d, w, op) => globalThis.__ops.push(["end", op])), 1' >/dev/null
     move 32 14; button PRESSED; button RELEASED # the first click after start is needed before clients get input
     sleep 1
 }
@@ -135,7 +141,7 @@ kill $WINDOW_PID 2>/dev/null
 echo "Drag to snap (SnapTile enabled, GNOME edge tiling off):"
 gsettings set org.gnome.mutter edge-tiling false
 ev "$ENABLE" >/dev/null
-PREVIEW='JSON.stringify(global.window_group.get_children().filter(c => c.style_class === "tile-preview").map(c => [Math.round(c.x), Math.round(c.y), Math.round(c.width), Math.round(c.height)]))'
+PREVIEW='JSON.stringify(global.window_group.get_children().filter(c => c.style_class === "tile-preview" && c.visible && c.opacity === 255).map(c => [Math.round(c.x), Math.round(c.y), Math.round(c.width), Math.round(c.height)]))'
 SIZE='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.title === "probe-window").map(w => { const r = w.get_frame_rect(); return [r.width, r.height]; })[0])'
 
 start_probe() { # start_probe [WIDTHxHEIGHT]: a fresh probe window, with a minimum size if given
@@ -172,6 +178,23 @@ snap() { # snap <description> <pointer x> <pointer y> <expected Tile rectangle x
     fi
 }
 
+snap_merged() { # snap_merged <description> <pointer x of the first third> <of the next> <expected rect>
+    grab_window
+    drag_to "$2" 716
+    move "$3" 716
+    sleep 0.6
+    local preview frame
+    preview=$(ev "$PREVIEW")
+    button RELEASED
+    sleep 1
+    frame=$(ev "$RECT")
+    if [ "$preview" = "\"[[$4]]\"" ] && [ "$frame" = "\"[$4]\"" ]; then
+        pass "$1: preview at $4, window at $4"
+    else
+        fail "$1: expected preview [[$4]] and window [$4], got preview $preview and window $frame"
+    fi
+}
+
 start_probe
 # The headless monitor is 1280x720 with a 32 px top bar; it reports no millimetres, so the
 # zones are 1 cm = 38 px deep at the 96 DPI fallback. Pointers sit well inside their zone.
@@ -205,6 +228,8 @@ BEFORE=$(ev "$RECT")
 button RELEASED
 sleep 1
 check "releasing outside every zone leaves the window where it is" "$BEFORE" "$RECT"
+snap_merged "release on the left two-thirds" 100 640 0,32,854,688
+snap_merged "release on the right two-thirds, merged from the right" 1200 640 427,32,853,688
 
 echo "Size before tiling:"
 start_probe
@@ -224,18 +249,49 @@ check "a window with no remembered size keeps its own" '"[640,688]"' "$SIZE"
 button RELEASED
 sleep 1
 
+echo "Cancelling a drag with Escape:"
+start_probe
+grab_window
+drag_to 3 360
+check "preview is shown before Escape" '"[[0,32,640,688]]"' "$PREVIEW"
+press_escape
+sleep 0.6
+check "Escape hides the preview" '"[]"' "$PREVIEW"
+button RELEASED
+sleep 1
+check "Escape leaves the window unsnapped" '"[440,226,400,300]"' "$RECT"
+snap "left half" 3 360 0,32,640,688
+grab_window
+drag_to 3 360
+check "dragging the tiled window back to a zone shows its preview" '"[[0,32,640,688]]"' "$PREVIEW"
+press_escape
+sleep 0.6
+button RELEASED
+sleep 1
+check "Escape puts a tiled window back into its Tile" '"[0,32,640,688]"' "$RECT"
+grab_window
+drag_to 640 300
+check "it still remembers its earlier size" '"[400,300]"' "$SIZE"
+button RELEASED
+sleep 1
+
 echo "Window that cannot get as small as the Tile (minimum 900x500):"
 start_probe 900x500
 snap "top-left quarter: window anchored at the Tile's top left" 3 3 0,32,640,344 0,32,900,500
 snap "bottom-right quarter: window pulled back onto the screen" 1276 716 640,376,640,344 380,220,900,500
 
 echo "Disabling SnapTile during and right after a drag:"
+# Records the timers SnapTile starts and still has pending (not removed, not finished).
+ev '(() => { const GLib = imports.gi.GLib; const add = GLib.timeout_add, remove = GLib.source_remove; globalThis.__timers = new Set(); GLib.timeout_add = function (priority, ms, fn) { const ours = new Error().stack.includes("dragSnap.js"); const id = add.call(GLib, priority, ms, ours ? () => { const again = fn(); if (!again) globalThis.__timers.delete(id); return again; } : fn); if (ours) globalThis.__timers.add(id); return id; }; GLib.source_remove = function (id) { globalThis.__timers.delete(id); return remove.call(GLib, id); }; return 1; })()' >/dev/null
+TIMERS='globalThis.__timers.size'
 start_probe
 grab_window
 drag_to 3 3
 check "preview is shown before disabling" '"[[0,32,640,344]]"' "$PREVIEW"
+check "the drag has a timer running" 1 "$TIMERS"
 ev "$DISABLE" >/dev/null
 sleep 0.3
+check "no timer is left when disabled during the drag" 0 "$TIMERS"
 check "preview is gone when disabled during the drag" '"[]"' "$PREVIEW"
 move 1276 3
 sleep 0.5
@@ -246,8 +302,10 @@ check "the window is not snapped after disabling" '"[400,300]"' "$SIZE"
 ev "$ENABLE" >/dev/null
 grab_window
 drag_to 3 3
-button RELEASED
+ev "globalThis.__dev.notify_button(imports.gi.GLib.get_monotonic_time(), 1, imports.gi.Clutter.ButtonState.RELEASED), 1" >/dev/null # no pause: the settle timer takes 150 ms
+check "the drop has a timer pending while the window settles" 1 "$TIMERS"
 ev "$DISABLE" >/dev/null # while the snapped window is still settling
+check "no timer is left when disabled right after a drop" 0 "$TIMERS"
 sleep 1
 check "extension is inactive after disabling right after a drop" $INACTIVE "$STATE"
 check "no preview left after disabling right after a drop" '"[]"' "$PREVIEW"

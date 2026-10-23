@@ -1,3 +1,4 @@
+import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -10,7 +11,8 @@ import {TilePreview} from './tilePreview.js';
 // How often the pointer is read during a drag. The shell offers no pointer signal while
 // Mutter holds the window grab, so it is polled (see docs/research/edge-tiling-feasibility.md).
 const POLL_INTERVAL_MS = 30;
-// How long a snapped window gets to reach its final size (it has in 100 ms in every test).
+// How long a snapped window gets to reach its final size. Windows settled within 100 ms in
+// every smoke test; see docs/adr/0006-snapped-window-placement-and-size-memory.md.
 const SETTLE_MS = 150;
 
 /**
@@ -67,8 +69,8 @@ export class DragSnap {
         if (!isTileable(window))
             return;
 
+        this._drag = {window, state: null, sourceId: 0, tiledFrame: null};
         this._restoreSize(window);
-        this._drag = {window, state: null, sourceId: 0};
         this._drag.sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, POLL_INTERVAL_MS, () => {
             this._update();
             return GLib.SOURCE_CONTINUE;
@@ -79,11 +81,19 @@ export class DragSnap {
         if (op !== Meta.GrabOp.MOVING || this._drag?.window !== window)
             return;
 
-        const result = this._decide();
+        // Escape cancels the drag: Mutter puts the window back and ends the grab while the
+        // button is still held. Only a release counts as a drop.
+        const [, , modifiers] = global.get_pointer();
+        const cancelled = (modifiers & Clutter.ModifierType.BUTTON1_MASK) !== 0;
+        const result = cancelled ? null : this._decide();
+        const {tiledFrame} = this._drag;
         this._stopPolling();
         this._preview.hide();
+
         if (result)
             this._snap(window, result);
+        else if (cancelled && tiledFrame)
+            this._snap(window, {rect: tiledFrame, workArea: this._workAreaOf(window)});
     }
 
     _update() {
@@ -129,6 +139,10 @@ export class DragSnap {
         });
     }
 
+    _workAreaOf(window) {
+        return plainRect(Main.layoutManager.getWorkAreaForMonitor(window.get_monitor()));
+    }
+
     _stopSettling(entry) {
         if (entry.settleId) {
             GLib.source_remove(entry.settleId);
@@ -145,6 +159,7 @@ export class DragSnap {
         // Keep the pointer at the same relative place along the window, so it stays in hand.
         const [pointerX] = global.get_pointer();
         const frame = window.get_frame_rect();
+        this._drag.tiledFrame = plainRect(frame);
         const x = Math.round(pointerX - size.width * (pointerX - frame.x) / frame.width);
         window.move_resize_frame(true, x, frame.y, size.width, size.height);
     }
