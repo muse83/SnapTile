@@ -54,4 +54,4 @@ if __name__ == '__main__':
     coords = list(map(int, sys.argv[2:]))
     for x, y in zip(coords[::2], coords[1::2]):
         px = rows[y][x * bpp:(x + 1) * bpp]
-        print(*px, 255 if bpp == 3 else '')
+        print(*px, *([255] if bpp == 3 else []))

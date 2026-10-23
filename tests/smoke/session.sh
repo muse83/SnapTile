@@ -31,8 +31,7 @@ gnome-shell --headless --wayland --no-x11 --virtual-monitor 1280x720 >"$SHELL_LO
 SHELL_PID=$!
 
 for _ in $(seq 40); do
-    gdbus call --session --dest org.snaptile.Test --object-path /org/snaptile/Test \
-        --method org.snaptile.Test.Eval "1" >/dev/null 2>&1 && break
+    ev 1 >/dev/null 2>&1 && break
     sleep 0.5
 done
 
