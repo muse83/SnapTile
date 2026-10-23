@@ -108,6 +108,33 @@ Least invasive approach (recommendation reasoning, **[U]** as judgment):
 - Check Wayland SSD handling in Mutter 50/51.
 - Prototype: place a libadwaita app and a non-libadwaita app with `move_resize_frame`, read back frame rect and observe client state and look in the VM.
 
+## Verified in the dev VM (ticket "Window look part 1", 2026-10-23)
+
+Built and run with `tests/smoke/run.sh` on GNOME Shell 50.4 and 51.1. Corrections to the
+sections above, which were read from `main` and not run:
+
+- **`Shell.GLSLEffect` does not exist in GNOME 51** (it does in 50). `Clutter.ShaderEffect`
+  exists in both, but the shader is handed over differently: GNOME 50 asks for source text
+  (`vfunc_get_static_shader_source`), GNOME 51 for a Cogl snippet (`vfunc_get_static_snippet`,
+  built with `Cogl.Snippet.new`). `src/cornerEffect.js` picks the one the running version has.
+  Uniforms go through `set_uniform_value` with typed `GObject.Value`s on both.
+- **The effect draws the window into a texture larger than the window.** Mutter pads it by at
+  least 0.75 px on every side and quantises its size (`_clutter_actor_box_enlarge_for_effects`),
+  so the shader's texture coordinates do not run over the window. At 400x300 the texture is
+  403x303 and starts 2 px up and left. Using the window size made the corners sit in the wrong
+  place; `offscreenTextureRect()` repeats Mutter's rule and the corner pixel checks guard it.
+- **Shadows:** the shader only changes pixels inside the visible frame, so the application's
+  own shadow outside the frame is untouched (pixels around the corners are identical with and
+  without the extension). The extension draws no shadow of its own. Not covered: shadows that
+  Mutter draws itself for windows without a client shadow.
+- **Test pitfalls:** the headless shell starts in the overview, where windows are shown at 95 %.
+  Hide it (`Main.overview.hide()`) and switch animations off before taking pixel readings.
+  GTK4 windows with a title bar have extra invisible borders, so the corner test uses a
+  frameless plain window (`PROBE_PLAIN=1` in `probe-window.py`).
+- **Still open:** fractional scaling and HiDPI (the shader works in logical pixels, untested on
+  a scaled monitor), screen recording, behaviour during open/close/minimize animations
+  (switched off in the test, so flicker is not machine-checked), Mutter-drawn shadows.
+
 ## Zusammenfassung (Klartext)
 
 - **Einfach:** Abstände (Gaps) zwischen Fenstern und zum Rand sind reine Rechnerei mit der Arbeitsfläche und lassen sich über die normale Fenster-Verschieben-Funktion umsetzen. Moderne GNOME-Apps behalten dabei ihre eigenen runden Ecken, weil Mutter ihnen bei dieser Methode nicht sagt, dass sie "gekachelt" sind (nur die eingebaute Kachelfunktion von Mutter löst die eckige Darstellung aus; das ist aus dem Quelltext abgeleitet, aber noch nicht im Betrieb geprüft).

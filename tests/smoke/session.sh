@@ -127,10 +127,14 @@ sleep 1
 check "window followed the pointer (y held below the top bar)" '"[-180,32,400,300]"' "$RECT"
 check "release ends the move" '"begin:1,end:1"' 'globalThis.__ops.map(o => o.join(":")).join(",")'
 
+take_shot() { # take_shot FILE: the shell's screenshot, as a PNG file; prints "done" or the error
+    rm -f "$1"
+    ev "globalThis.__shot = 'pending', (() => { const {Shell, Gio} = imports.gi; const sh = new Shell.Screenshot(); const st = Gio.File.new_for_path('$1').replace(null, false, Gio.FileCreateFlags.NONE, null); sh.screenshot(false, st, (o, res) => { try { sh.screenshot_finish(res); st.close(null); globalThis.__shot = 'done'; } catch (e) { globalThis.__shot = 'error ' + e; } }); })(), 1" >/dev/null
+    sleep 2
+    ev 'globalThis.__shot'
+}
 SHOT=/tmp/smoke-shot.png
-rm -f $SHOT
-ev "globalThis.__shot = 'pending', (() => { const {Shell, Gio} = imports.gi; const sh = new Shell.Screenshot(); const st = Gio.File.new_for_path('$SHOT').replace(null, false, Gio.FileCreateFlags.NONE, null); sh.screenshot(false, st, (o, res) => { try { sh.screenshot_finish(res); st.close(null); globalThis.__shot = 'done'; } catch (e) { globalThis.__shot = 'error ' + e; } }); })(), 1" >/dev/null
-sleep 2
+take_shot $SHOT >/dev/null
 check "screenshot written to a PNG file" '"done"' 'globalThis.__shot'
 PIXELS=$(python3 "$(dirname "$0")/pixels.py" $SHOT 100 100 600 500 | tr '\n' '|')
 # (100,100) is inside the moved window, (600,500) is bare desktop.
@@ -295,6 +299,83 @@ sleep 0.5
 check "after disabling, SnapTile no longer touches it" '"[100,100,720,420]"' "$RECT"
 ev "$ENABLE" >/dev/null
 kill $WINDOW_PID 2>/dev/null
+
+echo "Window look: rounded corners (probe window at 440,226, 400x300, 8 px corners at 96 DPI):"
+# The shell starts in the overview, which shows windows smaller, and animations would move
+# them during a screenshot. Both are switched off for the pixel checks.
+gsettings set org.gnome.desktop.interface enable-animations false
+ev 'Main.overview.hide(), 1' >/dev/null
+sleep 1
+red_at() { python3 "$(dirname "$0")/pixels.py" "$1" "$2" "$3" | cut -d' ' -f1; } # red channel at FILE X Y
+corner_checks() { # corner_checks <description> <screenshot> <round|square>: all four corners of the probe window
+    local desc=$1 file=$2 want=$3 bad=""
+    local corner name cx cy sx sy tip diag inner
+    for corner in "top-left 440 226 1 1" "top-right 839 226 -1 1" "bottom-left 440 525 1 -1" "bottom-right 839 525 -1 -1"; do
+        read -r name cx cy sx sy <<<"$corner"
+        tip=$(red_at "$file" $cx $cy)
+        diag=$(red_at "$file" $((cx + sx)) $((cy + sy)))
+        inner=$(red_at "$file" $((cx + 3 * sx)) $((cy + 3 * sy)))
+        if [ "$want" = round ]; then
+            { [ "$tip" -lt 100 ] && [ "$diag" -lt 100 ] && [ "$inner" -ge 150 ]; } || bad="$bad $name(tip $tip, diagonal $diag, inside $inner)"
+        else
+            { [ "$tip" -ge 150 ] && [ "$diag" -ge 150 ] && [ "$inner" -ge 150 ]; } || bad="$bad $name(tip $tip, diagonal $diag, inside $inner)"
+        fi
+    done
+    if [ -z "$bad" ]; then pass "$desc"; else fail "$desc:$bad"; fi
+}
+PLAIN_ACTOR='global.get_window_actors().find(a => a.meta_window.title === "probe-window")'
+EFFECTS="$PLAIN_ACTOR.get_effects().length"
+PROBE_PLAIN=1 start_probe
+ev "$DISABLE" >/dev/null
+take_shot /tmp/look-off.png >/dev/null
+corner_checks "without SnapTile the plain window has square corners (baseline)" /tmp/look-off.png square
+ev "$ENABLE" >/dev/null
+sleep 1
+take_shot /tmp/look-on.png >/dev/null
+corner_checks "with SnapTile all four corners are cut round" /tmp/look-on.png round
+[ "$(red_at /tmp/look-on.png 640 376)" = 204 ] && pass "the middle of the window is untouched" || fail "the middle of the window is untouched"
+mid=$(for xy in "640 227" "441 376" "838 376" "640 524"; do red_at /tmp/look-on.png $xy; done | tr '\n' ' ')
+[ "$mid" = "204 204 204 204 " ] && pass "the straight edges stay full" || fail "the straight edges stay full (got $mid)"
+check "one effect on the window" 1 "$EFFECTS"
+ev "$DISABLE" >/dev/null
+check "disabling removes the effect from the window" 0 "$EFFECTS"
+take_shot /tmp/look-off2.png >/dev/null
+corner_checks "after disabling the corners are square again" /tmp/look-off2.png square
+ev "$ENABLE" >/dev/null
+sleep 1
+
+echo "Window look: what it leaves alone"
+FULLSCREEN_EFFECTS="($PLAIN_ACTOR.meta_window.make_fullscreen(), $EFFECTS)"
+check "a full-screen window has no effect" 0 "$FULLSCREEN_EFFECTS"
+sleep 1
+check "leaving full screen brings it back" 1 "(($PLAIN_ACTOR.meta_window.unmake_fullscreen()), $EFFECTS)"
+sleep 1
+kill $WINDOW_PID 2>/dev/null
+sleep 1
+PROBE_POPOVER=1 start_probe
+sleep 2
+check "a menu is its own window next to the application window" 2 'global.get_window_actors().length'
+check "only the application window has the effect, the menu has none" '"application:1,menu:0"' \
+    'global.get_window_actors().map(a => `${a.meta_window.get_window_type() === 0 ? "application" : "menu"}:${a.get_effects().length}`).sort().join(",")'
+kill $WINDOW_PID 2>/dev/null
+sleep 1
+
+echo "Window look: the application's own shadow stays"
+start_probe
+ev "$DISABLE" >/dev/null
+take_shot /tmp/shadow-off.png >/dev/null
+ev "$ENABLE" >/dev/null
+sleep 1
+take_shot /tmp/shadow-on.png >/dev/null
+SHADOW_POINTS="438 224 436 222 440 224 438 230 436 300 441 222 840 224 842 226 842 530 440 527 436 524"
+off=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png $SHADOW_POINTS | tr '\n' '|')
+on=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-on.png $SHADOW_POINTS | tr '\n' '|')
+[ "$off" = "$on" ] && pass "pixels in the shadow around the corners are identical with and without SnapTile" || fail "shadow pixels changed: without $off with $on"
+near=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png 436 300)
+far=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png 380 300)
+[ "$near" != "$far" ] && pass "there is a shadow to protect (beside the window $near, further away $far)" || fail "the probe window draws no shadow ($near = $far)"
+kill $WINDOW_PID 2>/dev/null
+gsettings set org.gnome.desktop.interface enable-animations true
 
 echo "Disabling SnapTile during and right after a drag:"
 # Records the timers SnapTile starts and still has pending (not removed, not finished).

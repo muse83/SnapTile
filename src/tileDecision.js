@@ -41,6 +41,18 @@ export function pixelsPerCm(monitor) {
     return width / (widthMm / 10);
 }
 
+/**
+ * The Window look in logical pixels for one monitor ({width, height, widthMm, heightMm}):
+ * corner radius and visual margin, converted from millimetres with that monitor's density.
+ */
+export function lookSizes(monitor) {
+    const perCm = pixelsPerCm(monitor);
+    return {
+        radius: Math.round(CORNER_RADIUS_MM * perCm / 10),
+        margin: Math.round(MARGIN_MM * perCm / 10),
+    };
+}
+
 function splitAt(start, length, parts, index) {
     const edge = i => start + Math.ceil(length * i / parts);
     return {x: edge(index), width: edge(index + 1) - edge(index)};
@@ -169,10 +181,7 @@ export function decideTile({pointer, monitors, state = null}) {
     return {
         ...placed,
         workArea: {...area},
-        look: {
-            radius: Math.round(CORNER_RADIUS_MM * perCm / 10),
-            margin: Math.round(MARGIN_MM * perCm / 10),
-        },
+        look: lookSizes(monitor),
         state: nextState,
     };
 }

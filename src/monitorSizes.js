@@ -13,7 +13,9 @@ const ROTATED_TRANSFORMS = [1, 3, 5, 7];
  * answers are fine: monitors without a size are measured with the 96 DPI fallback.
  */
 export class MonitorSizes {
-    constructor() {
+    /** `onChanged` (optional) is called each time fresh sizes arrive from Mutter. */
+    constructor(onChanged = null) {
+        this._onChanged = onChanged;
         this._cancellable = new Gio.Cancellable();
         this._byPosition = new Map();
     }
@@ -24,6 +26,7 @@ export class MonitorSizes {
             null, null, Gio.DBusCallFlags.NONE, -1, this._cancellable, (connection, result) => {
                 try {
                     this._store(connection.call_finish(result).recursiveUnpack());
+                    this._onChanged?.();
                 } catch (e) {
                     if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                         console.warn(`SnapTile: could not read monitor sizes: ${e.message}`);
