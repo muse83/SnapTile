@@ -25,9 +25,8 @@ release. Looks the same as GNOME's own preview.
 An area at the screen edge or corner of one monitor that selects a Tile while the pointer is
 in it during a window drag. Each monitor has its own Edge zones.
 All Edge zones reach 1 cm in from the screen edge.
-SnapTile works on every monitor on its own, whether there is one or five. An edge that
-borders another monitor has no Edge zone, so dragging a window to the next monitor is never
-interrupted; all other edges of that monitor keep their zones.
+Every monitor has all its Edge zones on its own, whether there is one or five, also on
+edges that border another monitor.
 _Avoid_: Hot corner (a different GNOME feature)
 
 **Window look**:

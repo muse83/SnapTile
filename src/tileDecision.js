@@ -1,5 +1,6 @@
 // Decides which Tile a window drag selects. Pure logic, no GNOME imports, so it runs under
-// plain Node tests. The shell glue feeds in raw pointer and monitor data and gets back the
+// plain Node tests. Every monitor has all its zones on its own, also on edges shared with
+// another monitor. The shell glue feeds in raw pointer and monitor data and gets back the
 // Tile, its rectangle and the Window look sizes in pixels.
 
 const CM_PER_INCH = 2.54;
@@ -38,24 +39,6 @@ export function pixelsPerCm(monitor) {
         return fallback;
 
     return width / (widthMm / 10);
-}
-
-// Edge at the pointer is shared with another monitor if that monitor touches it and
-// covers the pointer's position along the edge.
-function bordersAt(monitor, monitors, pointer) {
-    const right = monitor.x + monitor.width;
-    const bottom = monitor.y + monitor.height;
-    const covers = (m, axis) => axis === 'y'
-        ? pointer.y >= m.y && pointer.y < m.y + m.height
-        : pointer.x >= m.x && pointer.x < m.x + m.width;
-
-    const others = monitors.filter(m => m !== monitor);
-    return {
-        left: others.some(m => m.x + m.width === monitor.x && covers(m, 'y')),
-        right: others.some(m => m.x === right && covers(m, 'y')),
-        top: others.some(m => m.y + m.height === monitor.y && covers(m, 'x')),
-        bottom: others.some(m => m.y === bottom && covers(m, 'x')),
-    };
 }
 
 function splitAt(start, length, parts, index) {
@@ -130,17 +113,16 @@ export function decideTile({pointer, monitors, state = null}) {
     const perCm = pixelsPerCm(monitor);
     const depth = ZONE_DEPTH_CM * perCm;
     const sideEnd = SIDE_STRIP_END_CM * perCm;
-    const free = bordersAt(monitor, monitors, pointer);
 
     const toLeft = pointer.x - monitor.x;
     const toRight = monitor.x + monitor.width - 1 - pointer.x;
     const toTop = pointer.y - monitor.y;
     const toBottom = monitor.y + monitor.height - 1 - pointer.y;
 
-    const inLeft = !free.left && toLeft < depth;
-    const inRight = !free.right && toRight < depth;
-    const inTop = !free.top && toTop < depth;
-    const inBottom = !free.bottom && toBottom < depth;
+    const inLeft = toLeft < depth;
+    const inRight = toRight < depth;
+    const inTop = toTop < depth;
+    const inBottom = toBottom < depth;
 
     let placed = null;
     let nextState = null;

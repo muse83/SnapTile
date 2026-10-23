@@ -198,7 +198,7 @@ test('zones use the fallback size on a placeholder monitor', () => {
     assert.equal(decideTile({pointer: {x: Math.ceil(px) + 1, y: 0}, monitors: [mon]}).tile, 'full');
 });
 
-// Two monitors side by side, different size and density.
+// Two monitors side by side, different size.
 const LEFT = {
     x: 0, y: 0, width: 1000, height: 600, widthMm: 250, heightMm: 150,
     workArea: {x: 0, y: 30, width: 1000, height: 570},
@@ -209,41 +209,24 @@ const RIGHT = {
 };
 const pair = (x, y, extra) => decideTile({pointer: {x, y}, monitors: [LEFT, RIGHT], ...extra});
 
-test('no zone on the edge where another monitor connects', () => {
-    assert.equal(pair(999, 300), null);
-    assert.equal(pair(1000, 300), null);
-    assert.equal(pair(999, 100), null);
-});
-
-test('free edges of both monitors still have zones', () => {
+test('every monitor keeps all its zones, also on the edge where another monitor connects', () => {
+    assert.equal(pair(999, 300).tile, 'right');
+    assert.equal(pair(1000, 300).tile, 'left');
+    assert.equal(pair(999, 100).tile, 'top-half');
+    assert.equal(pair(1000, 100).tile, 'top-half');
+    assert.equal(pair(999, 0).tile, 'top-right');
+    assert.equal(pair(1000, 0).tile, 'top-left');
+    assert.equal(pair(999, 599).tile, 'bottom-right');
+    assert.equal(pair(1000, 599).tile, 'bottom-left');
     assert.equal(pair(0, 300).tile, 'left');
     assert.equal(pair(2999, 300).tile, 'right');
     assert.equal(pair(500, 0).tile, 'full');
     assert.equal(pair(1500, 0).tile, 'full');
 });
 
-test('corner next to a neighbour falls back to the remaining free edge', () => {
-    // top-right of the left monitor: right edge is shared, top edge is free
-    assert.equal(pair(999, 0).tile, 'full');
-    // bottom-right of the left monitor: bottom edge is free, so thirds
-    assert.equal(pair(999, 599).tile, 'third-3');
-    // corners on the free sides stay quarters
-    assert.equal(pair(0, 0).tile, 'top-left');
-    assert.equal(pair(2999, 599).tile, 'bottom-right');
-});
-
 test('quarters and thirds are placed in the work area of the monitor under the pointer', () => {
     assert.deepEqual(pair(2999, 0).rect, {x: 2000, y: 0, width: 1000, height: 300});
     assert.deepEqual(pair(2000, 599).rect, {x: 1667, y: 0, width: 667, height: 600});
-});
-
-test('a monitor only blocks the part of the edge it actually touches', () => {
-    const small = {...LEFT, height: 300, workArea: {x: 0, y: 30, width: 1000, height: 270}};
-    const monitors = [small, RIGHT];
-    assert.equal(decideTile({pointer: {x: 999, y: 100}, monitors}), null);
-    // monitors that merely touch at a corner do not block anything
-    const diag = {...RIGHT, y: 300, workArea: {x: 1000, y: 300, width: 2000, height: 600}};
-    assert.equal(decideTile({pointer: {x: 999, y: 100}, monitors: [small, diag]}).tile, 'top-half');
 });
 
 test('zones are sized per monitor', () => {
@@ -276,21 +259,23 @@ test('a large low-density monitor keeps its real size', () => {
     assert.equal(pixelsPerCm(tv), 16);
 });
 
-test('with three monitors in a row each one works on its own, only shared edges are inactive', () => {
+test('with three monitors in a row each one has all its zones', () => {
     const row = [0, 1000, 2000].map(x => ({
         ...MON, x, workArea: {x, y: 30, width: 1000, height: 570},
     }));
     const d = (x, y) => decideTile({pointer: {x, y}, monitors: row})?.tile ?? null;
-    // middle monitor: left and right edges are shared, top and bottom still work
-    assert.equal(d(1000, 300), null);
-    assert.equal(d(1999, 300), null);
+    assert.equal(d(1000, 300), 'left');
+    assert.equal(d(1999, 300), 'right');
+    assert.equal(d(1000, 0), 'top-left');
+    assert.equal(d(1999, 599), 'bottom-right');
     assert.equal(d(1500, 0), 'full');
     assert.equal(d(1500, 599), 'third-2');
-    assert.equal(d(1000, 0), 'full');
-    assert.equal(d(1999, 599), 'third-3');
-    // outer monitors keep their outer edges and corners
-    assert.equal(d(0, 300), 'left');
     assert.equal(d(0, 0), 'top-left');
-    assert.equal(d(2999, 599), 'bottom-right');
     assert.equal(d(2999, 300), 'right');
+});
+
+test('a large low-density monitor keeps its real size', () => {
+    // 1920 px on 1200 mm (about 40 DPI): 16 px per cm, not the 96 DPI fallback
+    const tv = {...MON, width: 1920, widthMm: 1200, height: 1080, heightMm: 680};
+    assert.equal(pixelsPerCm(tv), 16);
 });
