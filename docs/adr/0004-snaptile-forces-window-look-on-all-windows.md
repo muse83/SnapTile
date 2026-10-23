@@ -28,3 +28,14 @@ maintainer wants the uniform look macOS has, and it is part of the first version
 - It is a fixed requirement of the first version, not up for debate (maintainer's decision). It still starts with a prototype in the dev VM to see how it behaves.
 - Scope: every application window and dialog; not menus, tooltips or the GNOME interface, and
   not true full-screen windows (the ones that hide the dock and top bar).
+
+## How the corners are made (2026-10-23, built in the first window look ticket)
+
+- A shader effect on each window cuts the corners, and only inside the visible window frame.
+  What an application draws outside the frame, its own shadow above all, stays as it is.
+  SnapTile draws no shadow of its own.
+- GNOME 50 and 51 want the shader handed over in different ways (GNOME 51 dropped the
+  interface the reference extension uses), so the effect supports both. Details and the
+  pitfalls found while building it are in `docs/research/rounded-corners-and-gaps-feasibility.md`.
+- Not yet verified: fractional scaling, flicker during open/close/minimize animations, and
+  shadows that Mutter itself draws for windows without a client shadow.
