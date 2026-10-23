@@ -2,7 +2,6 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {CornerEffect} from './cornerEffect.js';
-import {MonitorSizes} from './monitorSizes.js';
 import {lookSizes} from './tileDecision.js';
 
 const EFFECT_NAME = 'snaptile-corners';
@@ -15,20 +14,18 @@ const LOOK_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowT
  * is the rounded corners; everything it adds is removed again by destroy().
  */
 export class WindowLook {
-    constructor() {
-        this._monitorSizes = new MonitorSizes(() => this._refreshAll());
+    constructor(monitorSizes) {
+        this._monitorSizes = monitorSizes;
+        this._monitorSizes.watch(() => this._refreshAll());
         this._entries = new Map(); // window id -> {window, actor, windowIds, actorIds}
         this._signals = [];
     }
 
     /** Call from the extension's enable(). */
     enable() {
-        this._monitorSizes.refresh();
         this._signals.push(
-            [Main.layoutManager, Main.layoutManager.connect('monitors-changed', () => {
-                this._monitorSizes.refresh();
-                this._refreshAll();
-            })],
+            [Main.layoutManager, Main.layoutManager.connect('monitors-changed',
+                () => this._refreshAll())],
             [global.display, global.display.connect('window-created',
                 (display, window) => this._add(window))]);
         for (const actor of global.get_window_actors())
@@ -43,7 +40,6 @@ export class WindowLook {
 
         for (const entry of [...this._entries.values()])
             this._remove(entry);
-        this._monitorSizes.destroy();
     }
 
     _add(window) {

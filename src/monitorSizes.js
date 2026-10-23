@@ -13,20 +13,32 @@ const ROTATED_TRANSFORMS = [1, 3, 5, 7];
  * answers are fine: monitors without a size are measured with the 96 DPI fallback.
  */
 export class MonitorSizes {
-    /** `onChanged` (optional) is called each time fresh sizes arrive from Mutter. */
-    constructor(onChanged = null) {
-        this._onChanged = onChanged;
+    constructor() {
+        this._listeners = [];
+        this._monitorsChangedId = 0;
         this._cancellable = new Gio.Cancellable();
         this._byPosition = new Map();
     }
 
-    /** Asks Mutter again. Call once at enable and whenever the monitors change. */
+    /** Asks Mutter now and again whenever the monitors change. Call from the extension's enable(). */
+    enable() {
+        this.refresh();
+        this._monitorsChangedId = Main.layoutManager.connect('monitors-changed',
+            () => this.refresh());
+    }
+
+    /** `callback` is called each time fresh sizes arrive from Mutter. */
+    watch(callback) {
+        this._listeners.push(callback);
+    }
+
+    /** Asks Mutter again. */
     refresh() {
         Gio.DBus.session.call(BUS_NAME, OBJECT_PATH, BUS_NAME, 'GetCurrentState',
             null, null, Gio.DBusCallFlags.NONE, -1, this._cancellable, (connection, result) => {
                 try {
                     this._store(connection.call_finish(result).recursiveUnpack());
-                    this._onChanged?.();
+                    this._listeners.forEach(callback => callback());
                 } catch (e) {
                     if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                         console.warn(`SnapTile: could not read monitor sizes: ${e.message}`);
@@ -41,6 +53,10 @@ export class MonitorSizes {
     }
 
     destroy() {
+        if (this._monitorsChangedId)
+            Main.layoutManager.disconnect(this._monitorsChangedId);
+        this._monitorsChangedId = 0;
+        this._listeners = [];
         this._cancellable.cancel();
         this._byPosition.clear();
     }

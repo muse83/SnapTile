@@ -5,7 +5,6 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {anchoredOrigin, decideTile} from './tileDecision.js';
 import {SizeMemory} from './sizeMemory.js';
-import {MonitorSizes} from './monitorSizes.js';
 import {TilePreview} from './tilePreview.js';
 
 // How often the pointer is read during a drag. The shell offers no pointer signal while
@@ -18,9 +17,9 @@ const POLL_INTERVAL_MS = 30;
  * preview) is removed by destroy().
  */
 export class DragSnap {
-    constructor() {
+    constructor(monitorSizes) {
         this._memory = new SizeMemory();
-        this._monitorSizes = new MonitorSizes();
+        this._monitorSizes = monitorSizes;
         this._preview = new TilePreview();
         this._tiled = new Map(); // window id -> {window, unmanagedId, sizeChangedId}
         this._drag = null; // {window, state, sourceId} while a move is running
@@ -29,10 +28,7 @@ export class DragSnap {
 
     /** Call from the extension's enable(). */
     enable() {
-        this._monitorSizes.refresh();
         this._signals.push(
-            [Main.layoutManager, Main.layoutManager.connect('monitors-changed',
-                () => this._monitorSizes.refresh())],
             [global.display, global.display.connect('grab-op-begin',
                 (display, window, op) => this._onGrabBegin(window, op))],
             [global.display, global.display.connect('grab-op-end',
@@ -52,7 +48,6 @@ export class DragSnap {
             entry.window.disconnect(entry.unmanagedId);
         }
         this._tiled.clear();
-        this._monitorSizes.destroy();
     }
 
     _onGrabBegin(window, op) {
