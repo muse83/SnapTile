@@ -54,12 +54,22 @@ check "one hint source appears" 1 "$SOURCES"
 check "hint names the setting" '"Switch off GNOME edge tiling"' "$NOTE"
 check "hint text names Active Screen Edges" true \
     'Main.messageTray.getSources().some(s => s.notifications.some(n => n.body.includes("Active Screen Edges") && n.body.includes("edge-tiling false")))'
+# Urgency 1 is NORMAL; HIGH (2) and CRITICAL (3) would break through Do Not Disturb.
+check "hint has normal urgency, so Do Not Disturb silences it" '"1"' \
+    'Main.messageTray.getSources().filter(s => s.title === "SnapTile").flatMap(s => s.notifications.map(n => n.urgency)).join("|")'
+gsettings set org.gnome.mutter edge-tiling false
+sleep 0.5
+check "hint goes away when the user switches GNOME edge tiling off" 0 "$SOURCES"
+gsettings set org.gnome.mutter edge-tiling true
+sleep 0.5
+check "switching it back on while enabled shows no new hint" 0 "$SOURCES"
 ev "$DISABLE" >/dev/null
 check "extension is inactive after disable" $INACTIVE "$STATE"
 check "hint source is gone after disable" 0 "$SOURCES"
 ev "$ENABLE" >/dev/null
 check "hint appears again on the next enable" 1 "$SOURCES"
 ev "$DISABLE" >/dev/null
+check "hint source is gone after the second disable" 0 "$SOURCES"
 check "GNOME setting still on (SnapTile did not touch it)" true "$(gsettings get org.gnome.mutter edge-tiling)"
 
 echo "Edge tiling OFF:"
