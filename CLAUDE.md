@@ -9,6 +9,7 @@ The dev environment is a VM running Arch Linux with CLI only (no desktop, no GUI
 ## Reference material
 
 - `reference/` holds a window memory module. It is not built, linted or run.
+  SnapTile's licence is GPL-3.0-or-later (see `docs/adr/0005-licence-gpl-3-or-later.md`).
 - `rev_Screenshots/` (formerly `Screenshoots_Magnet/`) holds screenshots of the macOS app Magnet, showing the snap behaviour
   SnapTile should have (preview frame while dragging a window, then the window snaps to it).
   They illustrate the target look; how areas are triggered is not decided and is a separate
