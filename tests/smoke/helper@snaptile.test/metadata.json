@@ -1,0 +1,6 @@
+{
+  "uuid": "helper@snaptile.test",
+  "name": "SnapTile test helper",
+  "description": "Test only. Lets the smoke tests run code inside the headless shell (Shell.Eval is locked).",
+  "shell-version": ["50", "51"]
+}

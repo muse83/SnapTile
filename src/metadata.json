@@ -1,0 +1,8 @@
+{
+  "uuid": "snaptile@muse83",
+  "name": "SnapTile",
+  "description": "Snap windows into 14 screen areas by dragging them to the screen edge.",
+  "shell-version": ["50", "51"],
+  "session-modes": ["user"],
+  "url": "https://github.com/muse83/SnapTile"
+}
