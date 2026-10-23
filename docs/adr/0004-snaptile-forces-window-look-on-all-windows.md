@@ -54,6 +54,9 @@ maintainer wants the uniform look macOS has, and it is part of the first version
   window effect takes margin and radius from the same conversion, so both follow one source;
   they are still two separate drawings, so a change to either must be checked against the
   other (the smoke test does).
-- Not yet verified: that a window moved to a monitor with a different density gets that
-  monitor's margin at once (the headless test monitors have no physical size, so all share
-  the fallback), and that the preview's corner radius equals the window's with scaling.
+- Verified in the headless shell on GNOME 50 and 51 (pixels read from screenshots): the margin
+  on all four sides of a floating window, two windows dragged into neighbouring halves 2
+  margins apart and 1 margin from the work area edge, a window dropped over another one stays
+  where it is dropped, and the preview shows the same margin and corner radius as the window.
+- Margin and radius are whole pixels, so on a monitor at 96 DPI the visible gap is 6 px
+  (1.59 mm), not exactly 1.66 mm.
