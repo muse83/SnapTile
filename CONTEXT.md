@@ -10,7 +10,15 @@ The GNOME Shell extension this project builds; it snaps windows to fixed screen 
 _Avoid_: Gtile (name already taken by another GNOME extension)
 
 **Window memory**:
-Remembering the size and position of an application's window so it reappears the same way.
+Remembering where an application's window was when it was last closed so a new window
+reappears the same way: size and position, or the Tile, or maximised. One place per
+application; the window last moved, resized or closed counts. Has a switch and a clear button
+in the Extensions manager. Dialogs are never part of it.
+
+**Remembered place**:
+What Window memory keeps for one application: size and position of a free window, or the Tile
+and the size from before tiling for a tiled one, or the maximised flag, plus the monitor.
+_Avoid_: Layout, profile
 
 **Tile**:
 One of the 14 fixed screen areas a window can be snapped to: four quarters, four halves
