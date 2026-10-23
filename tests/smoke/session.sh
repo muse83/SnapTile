@@ -148,7 +148,13 @@ kill $WINDOW_PID 2>/dev/null
 echo "Drag to snap (SnapTile enabled, GNOME edge tiling off):"
 gsettings set org.gnome.mutter edge-tiling false
 ev "$ENABLE" >/dev/null
-PREVIEW='JSON.stringify(global.window_group.get_children().filter(c => c.style_class === "tile-preview" && c.visible && c.opacity === 255).map(c => [Math.round(c.x), Math.round(c.y), Math.round(c.width), Math.round(c.height)]))'
+# The Window look: 0.83 mm of margin is 3 px at the 96 DPI fallback of the headless monitors, and the
+# preview is drawn that far inside its Tile. PREVIEW reports the Tile the preview stands for
+# (the drawn frame grown by the margin); PREVIEW_DRAWN reports the frame as drawn.
+MARGIN=3
+PREVIEW_BOXES='global.window_group.get_children().filter(c => c.style_class === "tile-preview" && c.visible && c.opacity === 255)'
+PREVIEW_DRAWN="JSON.stringify($PREVIEW_BOXES.map(c => [Math.round(c.x), Math.round(c.y), Math.round(c.width), Math.round(c.height)]))"
+PREVIEW="JSON.stringify($PREVIEW_BOXES.map(c => [Math.round(c.x) - $MARGIN, Math.round(c.y) - $MARGIN, Math.round(c.width) + 2 * $MARGIN, Math.round(c.height) + 2 * $MARGIN]))"
 SIZE='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.title === "probe-window").map(w => { const r = w.get_frame_rect(); return [r.width, r.height]; })[0])'
 
 start_probe() { # start_probe [WIDTHxHEIGHT]: a fresh probe window, with a minimum size if given
@@ -300,21 +306,30 @@ check "after disabling, SnapTile no longer touches it" '"[100,100,720,420]"' "$R
 ev "$ENABLE" >/dev/null
 kill $WINDOW_PID 2>/dev/null
 
-echo "Window look: rounded corners (probe window at 440,226, 400x300, 8 px corners at 96 DPI):"
+echo "Window look: rounded corners and margin (probe window at 440,226, 400x300, 8 px corners and 3 px margin at 96 DPI):"
 # The shell starts in the overview, which shows windows smaller, and animations would move
 # them during a screenshot. Both are switched off for the pixel checks.
 gsettings set org.gnome.desktop.interface enable-animations false
 ev 'Main.overview.hide(), 1' >/dev/null
 sleep 1
 red_at() { python3 "$(dirname "$0")/pixels.py" "$1" "$2" "$3" | cut -d' ' -f1; } # red channel at FILE X Y
+look_of() { # look_of FILE X Y...: W for a window pixel (red 204), D for the bare desktop (red below 100), ? otherwise
+    local file=$1 value; shift
+    while [ $# -gt 1 ]; do
+        value=$(red_at "$file" "$1" "$2"); shift 2
+        if [ "$value" = 204 ]; then echo -n W; elif [ "$value" -lt 100 ]; then echo -n D; else echo -n '?'; fi
+    done
+}
 corner_checks() { # corner_checks <description> <screenshot> <round|square>: all four corners of the probe window
-    local desc=$1 file=$2 want=$3 bad=""
+    # Round corners start inside the margin: the visible window is the frame pulled in by 3 px.
+    local desc=$1 file=$2 want=$3 bad="" m=0
+    [ "$want" = round ] && m=$MARGIN
     local corner name cx cy sx sy tip diag inner
     for corner in "top-left 440 226 1 1" "top-right 839 226 -1 1" "bottom-left 440 525 1 -1" "bottom-right 839 525 -1 -1"; do
         read -r name cx cy sx sy <<<"$corner"
-        tip=$(red_at "$file" $cx $cy)
-        diag=$(red_at "$file" $((cx + sx)) $((cy + sy)))
-        inner=$(red_at "$file" $((cx + 3 * sx)) $((cy + 3 * sy)))
+        tip=$(red_at "$file" $((cx + m * sx)) $((cy + m * sy)))
+        diag=$(red_at "$file" $((cx + (m + 1) * sx)) $((cy + (m + 1) * sy)))
+        inner=$(red_at "$file" $((cx + (m + 3) * sx)) $((cy + (m + 3) * sy)))
         if [ "$want" = round ]; then
             { [ "$tip" -lt 100 ] && [ "$diag" -lt 100 ] && [ "$inner" -ge 150 ]; } || bad="$bad $name(tip $tip, diagonal $diag, inside $inner)"
         else
@@ -334,13 +349,18 @@ sleep 1
 take_shot /tmp/look-on.png >/dev/null
 corner_checks "with SnapTile all four corners are cut round" /tmp/look-on.png round
 [ "$(red_at /tmp/look-on.png 640 376)" = 204 ] && pass "the middle of the window is untouched" || fail "the middle of the window is untouched"
-mid=$(for xy in "640 227" "441 376" "838 376" "640 524"; do red_at /tmp/look-on.png $xy; done | tr '\n' ' ')
-[ "$mid" = "204 204 204 204 " ] && pass "the straight edges stay full" || fail "the straight edges stay full (got $mid)"
+# The frame is x 440..839, y 226..525. The margin clears 3 px inside it on every side, so the
+# last full pixel of each straight edge is 3 px in and the 3 px outside that are the desktop.
+edges=$(for xy in "640 229" "443 376" "836 376" "640 522"; do red_at /tmp/look-on.png $xy; done | tr '\n' ' ')
+[ "$edges" = "204 204 204 204 " ] && pass "the straight edges stay full right up to the margin" || fail "the straight edges stay full right up to the margin (got $edges)"
+margin=$(look_of /tmp/look-on.png 640 226 640 228 440 376 442 376 837 376 839 376 640 523 640 525)
+[ "$margin" = DDDDDDDD ] && pass "the 3 px margin inside the frame shows the desktop on all four sides" || fail "the 3 px margin inside the frame shows the desktop on all four sides (got $margin, want DDDDDDDD)"
 check "one effect on the window" 1 "$EFFECTS"
 ev "$DISABLE" >/dev/null
 check "disabling removes the effect from the window" 0 "$EFFECTS"
 take_shot /tmp/look-off2.png >/dev/null
 corner_checks "after disabling the corners are square again" /tmp/look-off2.png square
+[ "$(red_at /tmp/look-off2.png 441 376)" = 204 ] && [ "$(red_at /tmp/look-off2.png 640 226)" = 204 ] && pass "after disabling the margin is gone: the window is full up to its frame" || fail "after disabling the margin is gone: the window is full up to its frame"
 ev "$ENABLE" >/dev/null
 sleep 1
 
@@ -376,6 +396,65 @@ far=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png 380 300)
 [ "$near" != "$far" ] && pass "there is a shadow to protect (beside the window $near, further away $far)" || fail "the probe window draws no shadow ($near = $far)"
 kill $WINDOW_PID 2>/dev/null
 gsettings set org.gnome.desktop.interface enable-animations true
+
+echo "Window look: margin between and around tiled windows"
+# Plain frameless windows have no title bar to grab, so they are placed with the same call
+# SnapTile uses for a snap; the dragging itself is checked above.
+place_window() { # place_window TITLE X Y WIDTH HEIGHT
+    ev "global.get_window_actors().map(a => a.meta_window).filter(w => w.title === '$1')[0].move_resize_frame(true, $2, $3, $4, $5), 1" >/dev/null
+}
+# Window 1 is "probe-window", window 2 is "probe-second".
+FRAMES='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.title.startsWith("probe")).map(w => { const r = w.get_frame_rect(); return [w.title === "probe-window" ? 1 : 2, r.x, r.y, r.width, r.height]; }).sort())'
+PROBE_PLAIN=1 start_probe
+PROBE_PLAIN=1 PROBE_TITLE=probe-second WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >/tmp/smoke-window2.log 2>&1 &
+SECOND_PID=$!
+sleep 4
+place_window probe-window 0 32 640 688
+place_window probe-second 640 32 640 688
+sleep 1
+check "the two windows touch: their frames are exactly the two halves" '"[[1,0,32,640,688],[2,640,32,640,688]]"' "$FRAMES"
+take_shot /tmp/pair.png >/dev/null
+across=$(for x in 2 3 636 637 642 643 1276 1277; do look_of /tmp/pair.png $x 400; done)
+[ "$across" = DWWDDWWD ] \
+    && pass "side by side: 3 px to the screen edge, 6 px between the windows, 3 px to the other edge" \
+    || fail "side by side (columns 2,3,636,637,642,643,1276,1277: want DWWDDWWD, got $across)"
+down=$(for y in 34 35 716 717; do look_of /tmp/pair.png 300 $y; done)
+[ "$down" = DWWD ] \
+    && pass "3 px below the top bar and 3 px above the bottom of the work area" \
+    || fail "top and bottom (rows 34,35,716,717: want DWWD, got $down)"
+# Floating: the look moves nothing and repels nothing.
+place_window probe-second 300 100 400 300
+place_window probe-window 500 150 400 300
+sleep 1
+check "floating windows overlap where they are put, nothing pushes them apart" '"[[1,500,150,400,300],[2,300,100,400,300]]"' "$FRAMES"
+kill $SECOND_PID 2>/dev/null
+kill $WINDOW_PID 2>/dev/null
+sleep 1
+
+echo "Window look: the Tile preview matches the snapped window"
+start_probe
+take_shot /tmp/preview-before.png >/dev/null
+grab_window
+drag_to 1276 3
+take_shot /tmp/preview-during.png >/dev/null
+check "the preview is drawn 3 px inside its Tile, like the window it will become" '"[[643,35,634,338]]"' "$PREVIEW_DRAWN"
+check "the preview has the window's corner radius" '"border-radius: 8px;"' \
+    'global.window_group.get_children().filter(c => c.style_class === "tile-preview").map(c => c.style)[0]'
+same_as_before() { # same_as_before X Y: the pixel is as on the bare desktop
+    [ "$(python3 "$(dirname "$0")/pixels.py" /tmp/preview-during.png $1 $2)" = "$(python3 "$(dirname "$0")/pixels.py" /tmp/preview-before.png $1 $2)" ]
+}
+# The preview's top left corner is at 643,35; the dragged window covers the right of the Tile.
+outside=""
+for xy in "642 200" "700 34" "643 35" "644 36"; do same_as_before $xy || outside="$outside [$xy]"; done
+[ -z "$outside" ] && pass "preview: desktop shows in the margin and in the rounded top left corner" || fail "preview: these pixels were painted but should show the desktop:$outside"
+inside=""
+for xy in "644 200" "700 36" "646 38" "660 50"; do same_as_before $xy && inside="$inside [$xy]"; done
+[ -z "$inside" ] && pass "preview: tinted just inside the edge and inside the corner" || fail "preview: these pixels show the bare desktop but should be tinted:$inside"
+button RELEASED
+sleep 1
+check "the snapped window's frame is the Tile the preview marked" '"[640,32,640,344]"' "$RECT"
+kill $WINDOW_PID 2>/dev/null
+sleep 1
 
 echo "Disabling SnapTile during and right after a drag:"
 # Records the timers SnapTile starts and still has pending (not removed, not finished).

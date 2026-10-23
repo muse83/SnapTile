@@ -91,7 +91,7 @@ export class DragSnap {
     _update() {
         const result = this._decide();
         if (result)
-            this._preview.show(this._drag.window, result.rect);
+            this._preview.show(this._drag.window, result.visible, result.look.radius);
         else
             this._preview.hide();
     }

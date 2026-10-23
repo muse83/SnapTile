@@ -2,6 +2,7 @@
 
 PROBE_MIN=WIDTHxHEIGHT gives it a minimum size, to stand in for a window that cannot get small.
 PROBE_POPOVER=1 opens a popup menu a second after the window appears, to stand in for a menu.
+PROBE_TITLE=name sets the window title (default probe-window), to tell two windows apart.
 PROBE_PLAIN=1 makes it a frameless, plain red rectangle (no title bar, no client shadow), so
 the pixels at its corners tell whether the shell cut them.
 """
@@ -15,7 +16,7 @@ PLAIN_CSS = b"window, window.csd { background: transparent; border-radius: 0; bo
 
 
 def activate(app):
-    window = Gtk.ApplicationWindow(application=app, title='probe-window')
+    window = Gtk.ApplicationWindow(application=app, title=os.environ.get('PROBE_TITLE', 'probe-window'))
     window.set_default_size(400, 300)
     if os.environ.get('PROBE_PLAIN'):
         fill = Gtk.Box(hexpand=True, vexpand=True)
@@ -43,6 +44,6 @@ def activate(app):
     window.present()
 
 
-app = Gtk.Application(application_id='org.snaptile.Probe')
+app = Gtk.Application(application_id='org.snaptile.Probe' + str(os.getpid()))
 app.connect('activate', activate)
 app.run()

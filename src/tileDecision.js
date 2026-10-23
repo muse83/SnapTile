@@ -53,6 +53,21 @@ export function lookSizes(monitor) {
     };
 }
 
+/**
+ * `rect` pulled in by `margin` on every side: the part of a window or Tile that is visible
+ * once the Window margin is applied. A rectangle too small for it shrinks to zero around its
+ * centre instead of turning inside out.
+ */
+export function insetRect(rect, margin) {
+    const inset = (start, length) => {
+        const m = Math.min(margin, length / 2);
+        return {start: start + m, length: length - 2 * m};
+    };
+    const col = inset(rect.x, rect.width);
+    const row = inset(rect.y, rect.height);
+    return {x: col.start, y: row.start, width: col.length, height: row.length};
+}
+
 function splitAt(start, length, parts, index) {
     const edge = i => start + Math.ceil(length * i / parts);
     return {x: edge(index), width: edge(index + 1) - edge(index)};
@@ -125,7 +140,9 @@ export function anchoredOrigin(rect, size, workArea) {
  * @param {Array<{x, y, width, height, widthMm, heightMm, workArea: {x, y, width, height}}>} input.monitors
  * @param {object|null} [input.state] the `state` of the previous result while the drag
  *   continues; omit or null at the start of a drag
- * @returns {{tile: string, rect: object, workArea: object, look: {radius: number, margin: number}, state: object|null}|null}
+ * @returns {{tile: string, rect: object, visible: object, workArea: object, look: {radius: number, margin: number}, state: object|null}|null}
+ *   `rect` is where the window is placed, `visible` the same pulled in by the Window margin
+ *   (what the Tile preview draws)
  *   null when the pointer is in no Edge zone (the preview is hidden)
  */
 export function decideTile({pointer, monitors, state = null}) {
@@ -178,10 +195,12 @@ export function decideTile({pointer, monitors, state = null}) {
     if (!placed)
         return null;
 
+    const look = lookSizes(monitor);
     return {
         ...placed,
+        visible: insetRect(placed.rect, look.margin),
         workArea: {...area},
-        look: lookSizes(monitor),
+        look,
         state: nextState,
     };
 }

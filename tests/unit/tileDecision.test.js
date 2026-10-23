@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {anchoredOrigin, decideTile, pixelsPerCm} from '../../src/tileDecision.js';
+import {anchoredOrigin, decideTile, insetRect, pixelsPerCm} from '../../src/tileDecision.js';
 
 // 1000 x 600 px on 250 x 150 mm: 40 px per cm, so 1 cm = 40 px and 3 cm = 120 px.
 // The work area leaves 30 px for a top bar.
@@ -172,6 +172,22 @@ test('moving from the strip into a corner gives the quarter and drops the merge'
 test('look sizes are converted to pixels for the monitor', () => {
     // 40 px/cm: 2 mm = 8 px, 0.83 mm = 3.32 px
     assert.deepEqual(at(0, 0).look, {radius: 8, margin: 3});
+});
+
+test('the visible rectangle of a Tile is the Tile pulled in by the margin on every side', () => {
+    // margin 3 px at 40 px/cm: the whole screen is 1000 x 570 from y 30
+    assert.deepEqual(at(500, 0).visible, {x: 3, y: 33, width: 994, height: 564});
+    // two neighbouring halves leave 2 x 3 px between them
+    const left = at(0, 300).visible;
+    const right = at(999, 300).visible;
+    assert.equal(right.x - (left.x + left.width), 6);
+});
+
+test('insetRect never turns a rectangle inside out', () => {
+    assert.deepEqual(insetRect({x: 10, y: 20, width: 100, height: 50}, 4),
+        {x: 14, y: 24, width: 92, height: 42});
+    assert.deepEqual(insetRect({x: 10, y: 20, width: 5, height: 50}, 4),
+        {x: 12.5, y: 24, width: 0, height: 42});
 });
 
 test('pixelsPerCm uses the physical size', () => {

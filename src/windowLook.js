@@ -11,7 +11,8 @@ const LOOK_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowT
 
 /**
  * Gives every application window and dialog the Window look, tiled or floating. For now that
- * is the rounded corners; everything it adds is removed again by destroy().
+ * is the rounded corners and the margin around the window; everything it adds is removed
+ * again by destroy().
  */
 export class WindowLook {
     constructor(monitorSizes) {
@@ -101,16 +102,17 @@ export class WindowLook {
         const top = frame.y - buffer.y;
         effect.setFrame(
             {left, top, right: left + frame.width, bottom: top + frame.height},
-            this._radiusFor(window));
+            this._lookFor(window));
     }
 
-    _radiusFor(window) {
+    /** {radius, margin} in pixels for the monitor the window is on. */
+    _lookFor(window) {
         const index = window.get_monitor();
         const monitor = Main.layoutManager.monitors[index];
         if (!monitor)
-            return 0;
+            return {radius: 0, margin: 0};
         return lookSizes({
             width: monitor.width, height: monitor.height, ...this._monitorSizes.get(index),
-        }).radius;
+        });
     }
 }

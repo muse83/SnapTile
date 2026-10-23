@@ -39,3 +39,21 @@ maintainer wants the uniform look macOS has, and it is part of the first version
   pitfalls found while building it are in `docs/research/rounded-corners-and-gaps-feasibility.md`.
 - Not yet verified: fractional scaling, flicker during open/close/minimize animations, and
   shadows that Mutter itself draws for windows without a client shadow.
+
+## How the margin and the preview are made (2026-10-23, built in the second window look ticket)
+
+- The margin is made by the same shader as the corners: inside the window frame the outer
+  0.83 mm are made transparent and the corners are rounded around what is left. The window
+  keeps its frame, so placement, overlap and touching are untouched; two tiled windows appear
+  1.66 mm apart because each one hides its own margin.
+- The application's shadow stays where it is, outside the frame. It therefore sits one margin
+  further away from the visible window than before. Clicks in the margin still reach the
+  window, as the margin is only visual.
+- The Tile preview is drawn on the Tile pulled in by the margin, with the same corner radius
+  as a window. The Tile decision hands out the pulled-in rectangle (`visible`) and the
+  window effect takes margin and radius from the same conversion, so both follow one source;
+  they are still two separate drawings, so a change to either must be checked against the
+  other (the smoke test does).
+- Not yet verified: that a window moved to a monitor with a different density gets that
+  monitor's margin at once (the headless test monitors have no physical size, so all share
+  the fallback), and that the preview's corner radius equals the window's with scaling.
