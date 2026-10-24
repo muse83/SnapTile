@@ -2,27 +2,33 @@ import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {appKeyOf, parsePlaces, placeFor, rememberFree, rememberOnClose, serialisePlaces} from './rememberedPlaces.js';
+import {appKeyOf, parsePlaces, placementFor, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
 
 /**
- * Window memory for free windows (ADR 0007, ADR 0009): remembers the size and position of an
- * application's window when the user finishes moving or resizing it, when it closes and when
- * the extension is disabled, and puts the next new window of that application there. The
- * decisions live in rememberedPlaces.js; this class connects them to the windows and to the
- * settings. It creates only signal connections, which destroy() removes; there is no timer.
+ * Window memory (ADR 0007, ADR 0009, ADR 0010): remembers the place of an application's window when the
+ * user finishes moving or resizing it, when it closes and when the extension is disabled, and
+ * puts the next new window of that application there: the size and position of a free window,
+ * the Tile of a tiled one (through the drag's own snap path), or maximised. The decisions live
+ * in rememberedPlaces.js; this class connects them to the windows and to the settings. It
+ * creates only signal connections, which destroy() removes; there is no timer.
  *
  * The switch "enabled" in the settings turns remembering and placing off without touching what
  * is stored. The preferences window clears the memory by resetting "places"; the copy kept
  * here follows every change of the stored text, so a clear reaches windows that are open now.
  *
- * Not yet here: tiled and maximised windows, a second window of an application (GNOME
- * places it as usual), several monitors that change.
+ * Not yet here: a second window of an application (GNOME places it as usual), several
+ * monitors that change beyond "the nearest monitor takes it".
  */
 export class WindowMemory {
-    /** @param settings the extension's Gio.Settings, @param tiledWindows the shared TiledWindows */
-    constructor(settings, tiledWindows) {
+    /**
+     * @param settings the extension's Gio.Settings
+     * @param tiledWindows the shared TiledWindows
+     * @param dragSnap the DragSnap, whose snap path puts a reopened window into its Tile
+     */
+    constructor(settings, tiledWindows, dragSnap) {
         this._settings = settings;
         this._tiledWindows = tiledWindows;
+        this._dragSnap = dragSnap;
         this._places = {};
         this._signals = [];
         // Every window watched until it closes: {closingId, arriving, unmaximizedId, savedAt}.
@@ -102,42 +108,52 @@ export class WindowMemory {
     }
 
     /**
-     * The key of the application whose place this window may save, or null. Tiled and
-     * maximised windows are not at their free size; until they are handled, they leave the
-     * remembered place as it is.
+     * What this window is, for saving: {key, state} (see rememberWindow), or null when the
+     * window is left alone. A window maximised with the window button counts as maximised even
+     * if it was tiled before; a tiled window is remembered by its Tile, whose rectangle is read
+     * from the record (the window's own frame may still be the one from the drag).
      */
-    _savableKey(window) {
+    _stateOf(window) {
         const key = appKeyOf(factsOf(window));
-        if (key === null || window.is_maximized() || this._tiledWindows.get(window.get_id()))
+        if (key === null)
             return null;
-        return key;
+        const tiled = this._tiledWindows.get(window.get_id());
+        if (window.is_maximized()) {
+            return {key, state: {
+                frame: plainRect(window.get_frame_rect()),
+                maximized: true,
+                sizeBefore: tiled?.sizeBefore,
+            }};
+        }
+        if (tiled)
+            return {key, state: {frame: tiled.frame, tile: tiled.tile, sizeBefore: tiled.sizeBefore}};
+        return {key, state: {frame: plainRect(window.get_frame_rect())}};
     }
 
     /**
      * The user let go of a window after moving or resizing it (mouse or keyboard). Drag-to-snap
      * handles the same signal first (it is enabled first) and records a snapped window as
-     * tiled, so a drop into a Tile is not saved as a free place.
+     * tiled, so a drop into a Tile is saved as that Tile and not as a free place.
      */
     _saveAfterGrab(window) {
         const entry = this._windows.get(window);
-        const key = entry && this._isMemoryOn() && this._savableKey(window);
-        if (!key)
+        const found = entry && this._isMemoryOn() && this._stateOf(window);
+        if (!found)
             return;
         entry.savedAt = ++this._saves;
-        this._store(rememberFree(this._places, key, plainRect(window.get_frame_rect())));
+        this._store(rememberWindow(this._places, found.key, found.state));
     }
 
     /** A window closes: its place counts unless another window of the application saved later. */
     _saveOnClose(window) {
         const entry = this._windows.get(window);
-        const key = this._isMemoryOn() && this._savableKey(window);
-        if (!key)
+        const found = this._isMemoryOn() && this._stateOf(window);
+        if (!found)
             return;
         const others = [...this._windows]
-            .filter(([other]) => other !== window && appKeyOf(factsOf(other)) === key)
+            .filter(([other]) => other !== window && appKeyOf(factsOf(other)) === found.key)
             .map(([, otherEntry]) => otherEntry.savedAt);
-        this._store(rememberOnClose(
-            this._places, key, plainRect(window.get_frame_rect()), entry.savedAt, others));
+        this._store(rememberOnClose(this._places, found.key, found.state, entry.savedAt, others));
     }
 
     /**
@@ -152,9 +168,9 @@ export class WindowMemory {
         };
         let places = this._places;
         for (const window of [...this._windows.keys()].sort((a, b) => rank(b) - rank(a))) {
-            const key = this._savableKey(window);
-            if (key)
-                places = rememberFree(places, key, plainRect(window.get_frame_rect()));
+            const found = this._stateOf(window);
+            if (found)
+                places = rememberWindow(places, found.key, found.state);
         }
         this._store(places);
     }
@@ -182,24 +198,48 @@ export class WindowMemory {
 
         const workAreas = Main.layoutManager.monitors.map(
             (monitor, index) => plainRect(Main.layoutManager.getWorkAreaForMonitor(index)));
-        const rect = placeFor(this._places, key, workAreas);
-        if (rect === null)
+        const placement = placementFor(this._places, key, workAreas);
+        if (placement === null)
             return;
 
-        if (!window.is_maximized()) {
-            window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
+        if (!window.is_maximized() || placement.kind === 'maximized') {
+            this._put(window, placement);
             return;
         }
         // An application that maximises itself at start ignores a plain placement, and one
-        // asked right after un-maximising loses it. So wait for the window to say it is
-        // back to a free size (its next size change), then place it. See
+        // asked right after un-maximising loses it (a Tile too). So wait for the window to say
+        // it is back to a free size (its next size change), then place it. See
         // docs/research/window-placement-on-wayland.md.
         entry.unmaximizedId = window.connect('size-changed', () => {
             window.disconnect(entry.unmaximizedId);
             entry.unmaximizedId = 0;
-            window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
+            if (!window.is_fullscreen()) // full screen wins, a Tile must not be forced on it
+                this._put(window, placement);
         });
         window.unmaximize();
+    }
+
+    /**
+     * Carries out a placement. A Tile goes through the drag's snap path with the earlier size
+     * that was remembered (or none): the window's current size is its application's own default
+     * and must not become "the size before tiling".
+     */
+    _put(window, placement) {
+        switch (placement.kind) {
+        case 'free':
+            window.move_resize_frame(true, placement.rect.x, placement.rect.y,
+                placement.rect.width, placement.rect.height);
+            break;
+        case 'tile':
+            this._dragSnap.snapWindow(window, placement, placement.sizeBefore);
+            break;
+        case 'maximized':
+            if (window.get_monitor() !== placement.monitor)
+                window.move_to_monitor(placement.monitor);
+            if (!window.is_maximized())
+                window.maximize();
+            break;
+        }
     }
 
     /**

@@ -12,7 +12,8 @@ Status: accepted (2026-10-23, maintainer decision in a grilling session). Spec: 
   it had when it was last closed; a window closed in a Tile comes back in that Tile (stored by
   name, one of the 14); one maximised with the window button comes back maximised. For a tiled
   window only the size from before tiling is kept, no position: dragging a tiled window out
-  follows the pointer, so a stored position could never be used. An unknown size is never
+  follows the pointer, so a stored position could never be used (what is stored for the
+  monitor and the fallback is the Tile's own rectangle, see ADR 0010). An unknown size is never
   invented.
 - **Exception to "SnapTile has no settings".** The first spec said SnapTile has no settings.
   For window memory this is deliberately changed: a settings schema shipped with the extension

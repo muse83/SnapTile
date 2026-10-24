@@ -674,6 +674,90 @@ check "disabling saves the open windows, the one used last wins (second window)"
 ev "$ENABLE" >/dev/null
 stop_apps
 
+echo "  Window memory: tiled and maximised windows"
+# What is stored per application, as text: "<Tile, maximized or free> <frame> <size before tiling>".
+KINDS="Object.entries(JSON.parse($MEM.get_string('places'))).map(([key, e]) => key + '=' + (e.tile ?? (e.maximized ? 'maximized' : 'free')) + ' ' + Object.values(e.frame) + ' ' + (e.sizeBefore ? e.sizeBefore.width + 'x' + e.sizeBefore.height : '-')).join(';')"
+size_of() { echo "$(titled "$1").map(w => { const r = w.get_frame_rect(); return r.width + 'x' + r.height; })[0]"; } # size_of <title>: JS for "WIDTHxHEIGHT"
+tile_of() { echo "$(titled "$1").map(w => Main.extensionManager.lookup('$UUID').stateObj._tiledWindows.get(w.get_id())?.tile ?? null)[0]"; } # tile_of <title>: JS for the Tile SnapTile has the window in
+LEFT_TILE='{"org.snaptile.MemA": {frame: {x: 0, y: 32, width: 640, height: 688}, tile: "left", sizeBefore: {width: 520, height: 360}}}'
+
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+place_window mem-a 50 100 520 360
+drag_title 250 114 -247 286 # the pointer ends in the left Edge zone
+check "a window dropped into a Tile sits in it" '"[0,32,640,688]"' "$(frame_of mem-a)"
+check "the drop is saved at once: the Tile, its rectangle and the size from before tiling" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
+close_window mem-a
+check "closing a tiled window keeps the Tile" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "the application's next window reopens in the same Tile" '"[0,32,640,688]"' "$(frame_of mem-a)"
+check "the reopened window is recorded as tiled in that Tile" '"left"' "$(tile_of mem-a)"
+close_window mem-a
+check "closing it again keeps the size from before tiling, not the application's default" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+drag_title 300 46 400 250 # out of the Tile, to the middle of the screen
+check "dragging the reopened window out of its Tile gives it the earlier size" '"520x360"' "$(size_of mem-a)"
+check "a window dragged out is remembered as a free window again" '"free"' "(e => e.tile ?? (e.maximized ? 'maximized' : 'free'))(JSON.parse($MEM.get_string('places'))['org.snaptile.MemA'])"
+stop_apps
+
+# A window that opened tiled and never had a free size: nothing is invented from the default.
+set_places '{"org.snaptile.MemA": {frame: {x: 640, y: 32, width: 640, height: 688}, tile: "right"}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "a Tile remembered without an earlier size still reopens in the Tile" '"[640,32,640,688]"' "$(frame_of mem-a)"
+close_window mem-a
+check "closing it invents no size from the application's default" '"org.snaptile.MemA=right 640,32,640,688 -"' "$KINDS"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+drag_title 900 46 -300 250
+check "dragged out, a window that never had a free size keeps its own size" '"640x688"' "$(size_of mem-a)"
+stop_apps
+
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+place_window mem-a 50 100 400 300
+drag_title 250 114 390 -111 # the pointer ends in the top Edge zone: the whole-screen Tile
+check "a window dropped into the whole-screen Tile fills the work area" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+close_window mem-a
+check "closing it in the whole-screen Tile remembers that Tile" '"org.snaptile.MemA=full 0,32,1280,688 400x300"' "$KINDS"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "it reopens in the whole-screen Tile" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+check "the whole-screen Tile is a Tile, not the maximised state" '"false|full"' "[$(titled mem-a)[0].is_maximized(), $(tile_of mem-a)].join('|')"
+stop_apps
+
+set_places '{"org.snaptile.MemA": {frame: {x: 120, y: 90, width: 520, height: 360}}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+ev "$(titled mem-a)[0].maximize(), 1" >/dev/null
+sleep 1
+close_window mem-a
+check "closing a window maximised with the window button remembers the flag and the free size" '"org.snaptile.MemA=maximized 0,32,1280,688 520x360"' "$KINDS"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "the application's next window reopens maximised" '"true|[0,32,1280,688]"' "[$(titled mem-a)[0].is_maximized(), $(frame_of mem-a)].join('|')"
+stop_apps
+
+echo "  Window memory: a Tile is reached also by windows that fight it, and by those that do not fit"
+set_places "$LEFT_TILE"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
+check "SnapTile's Tile wins against an application that maximises itself" '"false|[0,32,640,688]"' "[$(titled mem-a)[0].is_maximized(), $(frame_of mem-a)].join('|')"
+check "that window is recorded as tiled, with the remembered earlier size" '"left"' "$(tile_of mem-a)"
+stop_apps
+
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MIN=900x500
+check "a window with a minimum size larger than its Tile is hung on the Tile's top left corner" '"[0,32,900,688]"' "$(frame_of mem-a)"
+stop_apps
+
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
+check "two windows opened together: exactly one is put into the Tile" 1 "[$(frame_of mem-a), $(frame_of mem-a-2)].filter(f => f === '[0,32,640,688]').length"
+stop_apps
+
+echo "  Window memory: a tiled window is saved when the extension is disabled"
+set_places "$LEFT_TILE"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+store_places '{}' # behind the extension's back: it follows, so only saving the open window can bring the Tile back
+check "the stored places are empty" '""' "$KINDS"
+ev "$DISABLE" >/dev/null
+check "disabling saves the open tiled window with its Tile and earlier size" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
+ev "$ENABLE" >/dev/null
+stop_apps
+
 echo "  Window memory: the switch and the clear button in the Extensions manager"
 # The real preferences window is opened in the test shell and driven like a user would: a click
 # into it, then keys. The first control is the switch (Space), the next one the clear button

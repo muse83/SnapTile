@@ -13,16 +13,21 @@ replaces the old size memory.
   extension creates the record, hands it to drag-to-snap and clears it on disable. Drag-to-snap
   does not own or clear it, so the window memory can still read it while the extension is
   being disabled (it must save every open window then, see ADR 0007).
-- **What it holds per window.** The Tile by name (one of the 14) and the size from before
-  tiling, or none for a window that never had a free size. Tiling a tiled window again moves it
-  to the new Tile but keeps the first size (ADR 0006: remembered once per tiling).
+- **What it holds per window.** The Tile by name (one of the 14), the rectangle of that Tile
+  on its monitor (added with the ticket "Tiled and maximised windows reopen in their Tile or
+  maximised", see ADR 0010) and the size from before tiling, or none for a window that never
+  had a free size. Tiling a tiled window again moves it to the new Tile (and its rectangle) but
+  keeps the first size (ADR 0006: remembered once per tiling).
 - **Dropped at the same moments as before.** Dragged out of the Tile, resized, moved by
   keyboard, closed, extension disabled. Drag-to-snap's own bookkeeping (the signals that watch
   a tiled window) stays in drag-to-snap; the record is plain data and creates no timers or
   signals.
 - **Escape keeps the Tile.** A drag cancelled with Escape puts a tiled window back into its
   Tile and records that Tile again (the size from before is the one the window was just given
-  back).
+  back, or none if it had none).
+- **The snap path takes the size from its caller.** A drop passes the window's size at that
+  moment; the window memory passes the remembered size or none, because the size of a window
+  that just opened is its application's default and must not become "the size before tiling".
 
 ## Considered Options
 

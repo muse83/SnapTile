@@ -94,6 +94,37 @@ function thirdUnderPointer(area, x) {
 
 const THIRD_NAMES = ['third-1', 'third-2', 'third-3'];
 
+/** The names of the 14 Tiles. */
+export const TILES = [
+    'top-left', 'top-right', 'bottom-left', 'bottom-right',
+    'top-half', 'bottom-half', 'left', 'right',
+    ...THIRD_NAMES, 'two-thirds-left', 'two-thirds-right', 'full',
+];
+
+/**
+ * The rectangle of the named Tile inside a work area, or null for a name that is no Tile. The
+ * one place that turns a Tile into pixels: a drag and a reopened window get the same result.
+ */
+export function tileRect(tile, area) {
+    switch (tile) {
+    case 'top-left': return quarterOrHalf(area, true, true, true, true);
+    case 'top-right': return quarterOrHalf(area, false, true, true, true);
+    case 'bottom-left': return quarterOrHalf(area, true, false, true, true);
+    case 'bottom-right': return quarterOrHalf(area, false, false, true, true);
+    case 'top-half': return quarterOrHalf(area, true, true, false, true);
+    case 'bottom-half': return quarterOrHalf(area, true, false, false, true);
+    case 'left': return quarterOrHalf(area, true, true, true, false);
+    case 'right': return quarterOrHalf(area, false, true, true, false);
+    case 'full': return {...area};
+    case 'third-1': return thirdsRect(area, 0, 0);
+    case 'third-2': return thirdsRect(area, 1, 1);
+    case 'third-3': return thirdsRect(area, 2, 2);
+    case 'two-thirds-left': return thirdsRect(area, 0, 1);
+    case 'two-thirds-right': return thirdsRect(area, 1, 2);
+    default: return null;
+    }
+}
+
 // Merged thirds: state is {monitor, anchor, current}. The anchor is the third the merge
 // started from; returning to it gives the single third again, moving on to the far
 // neighbour re-anchors on the third just left. Skipping a third falls back to single.
@@ -108,15 +139,10 @@ function nextThirdsState(previous, monitorIndex, current) {
     return {monitor: monitorIndex, anchor: previous.current, current};
 }
 
-function thirdsTile(area, state) {
-    if (state.anchor === state.current) {
-        return {tile: THIRD_NAMES[state.current], rect: thirdsRect(area, state.current, state.current)};
-    }
-    const first = Math.min(state.anchor, state.current);
-    return {
-        tile: first === 0 ? 'two-thirds-left' : 'two-thirds-right',
-        rect: thirdsRect(area, first, first + 1),
-    };
+function thirdsTile(state) {
+    if (state.anchor === state.current)
+        return THIRD_NAMES[state.current];
+    return Math.min(state.anchor, state.current) === 0 ? 'two-thirds-left' : 'two-thirds-right';
 }
 
 /**
@@ -172,33 +198,30 @@ export function decideTile({pointer, monitors, state = null}) {
     let nextState = null;
 
     if ((inLeft || inRight) && (inTop || inBottom)) {
-        placed = {
-            tile: `${inBottom ? 'bottom' : 'top'}-${inLeft ? 'left' : 'right'}`,
-            rect: quarterOrHalf(area, inLeft, inTop, true, true),
-        };
+        placed = `${inBottom ? 'bottom' : 'top'}-${inLeft ? 'left' : 'right'}`;
     } else if (inLeft || inRight) {
-        const side = inLeft ? 'left' : 'right';
-        if (toTop >= depth && toTop < sideEnd) {
-            placed = {tile: 'top-half', rect: quarterOrHalf(area, true, true, false, true)};
-        } else if (toBottom >= depth && toBottom < sideEnd) {
-            placed = {tile: 'bottom-half', rect: quarterOrHalf(area, true, false, false, true)};
-        } else {
-            placed = {tile: side, rect: quarterOrHalf(area, inLeft, true, true, false)};
-        }
+        if (toTop >= depth && toTop < sideEnd)
+            placed = 'top-half';
+        else if (toBottom >= depth && toBottom < sideEnd)
+            placed = 'bottom-half';
+        else
+            placed = inLeft ? 'left' : 'right';
     } else if (inTop) {
-        placed = {tile: 'full', rect: {...area}};
+        placed = 'full';
     } else if (inBottom) {
         nextState = nextThirdsState(state, index, thirdUnderPointer(area, pointer.x));
-        placed = thirdsTile(area, nextState);
+        placed = thirdsTile(nextState);
     }
 
     if (!placed)
         return null;
 
     const look = lookSizes(monitor);
+    const rect = tileRect(placed, area);
     return {
-        ...placed,
-        visible: insetRect(placed.rect, look.margin),
+        tile: placed,
+        rect,
+        visible: insetRect(rect, look.margin),
         workArea: {...area},
         look,
         state: nextState,

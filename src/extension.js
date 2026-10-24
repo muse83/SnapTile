@@ -17,7 +17,7 @@ export default class SnapTileExtension extends Extension {
         this._dragSnap.enable();
         this._windowLook = new WindowLook(this._monitorSizes);
         this._windowLook.enable();
-        this._windowMemory = new WindowMemory(this.getSettings(), this._tiledWindows);
+        this._windowMemory = new WindowMemory(this.getSettings(), this._tiledWindows, this._dragSnap);
         this._windowMemory.enable();
     }
 

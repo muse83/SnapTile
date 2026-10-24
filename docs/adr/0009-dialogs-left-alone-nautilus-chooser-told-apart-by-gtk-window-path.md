@@ -31,7 +31,7 @@ reopens at its remembered size and position" (spec: issue #8).
   after moving or resizing, when it closes, and for every open window when the extension is
   disabled (most recently used last, so it wins). A closing window does not overwrite what
   another open window of the same application saved after it. Tiled and maximised
-  windows leave the remembered place as it is until their ticket. Windows that were open when
+  windows were added later (ADR 0010). Windows that were open when
   the extension was enabled are never moved, but their close is remembered.
 - **Stored data.** One text value in the extension's settings schema, application key to
   frame, in order of use, at most 200 applications (ADR 0007). The extension reads it once when
@@ -63,10 +63,11 @@ reopens at its remembered size and position" (spec: issue #8).
   (research note, section 6).
 - Saving (ticket "Saving is reliable", spec: issue #8): "last action" is a counter per open
   window, set when the user lets go after moving or resizing. A closing window is skipped if a
-  sibling has a higher number. Known limits: a sibling that was tiled or maximised after its
-  last save still blocks the close of an older window until the tiled and maximised ticket
-  handles it; windows missing from the shell's tab list count as oldest when the extension is
-  disabled; the order of use is the key order of the stored object, so purely numeric
+  sibling has a higher number. Known limits: a drop into a Tile counts as a save, but maximising
+  with the window button does not (it is saved when the window closes or the extension is
+  disabled), so another window of the application that closes first can replace the place of
+  the one maximised last; windows missing from the shell's tab list count as oldest when the
+  extension is disabled; the order of use is the key order of the stored object, so purely numeric
   application keys would be misordered (not expected for application ids or window classes).
   The move/resize save relies on drag-to-snap handling the same signal first (it is enabled
   first), so a drop into a Tile is not saved as a free place.

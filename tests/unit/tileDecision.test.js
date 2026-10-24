@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {anchoredOrigin, decideTile, insetRect, pixelsPerCm} from '../../src/tileDecision.js';
+import {TILES, anchoredOrigin, decideTile, insetRect, pixelsPerCm, tileRect} from '../../src/tileDecision.js';
 
 // 1000 x 600 px on 250 x 150 mm: 40 px per cm, so 1 cm = 40 px and 3 cm = 120 px.
 // The work area leaves 30 px for a top bar.
@@ -318,4 +318,43 @@ test('a window larger than the work area sits at its top left', () => {
     const tile = {x: 500, y: 315, width: 500, height: 285};
     const area = {x: 0, y: 30, width: 1000, height: 570};
     assert.deepEqual(anchoredOrigin(tile, {width: 1200, height: 800}, area), {x: 0, y: 30});
+});
+
+// --- the rectangle of a named Tile ---
+
+test('there are 14 Tiles', () => {
+    assert.equal(TILES.length, 14);
+    assert.equal(new Set(TILES).size, 14);
+});
+
+test('the rectangle of a Tile by name is the one a drag into it gives', () => {
+    // One pointer position per Tile, as a drag would reach it.
+    const pointers = {
+        'top-left': [0, 0], 'top-right': [999, 0], 'bottom-left': [0, 599], 'bottom-right': [999, 599],
+        'top-half': [0, 60], 'bottom-half': [0, 540], left: [0, 300], right: [999, 300],
+        full: [500, 0], 'third-1': [100, 599], 'third-2': [500, 599], 'third-3': [900, 599],
+    };
+    for (const [tile, [x, y]] of Object.entries(pointers)) {
+        const result = at(x, y);
+        assert.equal(result.tile, tile);
+        assert.deepEqual(tileRect(tile, MON.workArea), result.rect, tile);
+    }
+    // The two merged thirds come from dragging along the bottom edge.
+    const left = at(100, 599);
+    assert.deepEqual(at(500, 599, {state: left.state}).tile, 'two-thirds-left');
+    assert.deepEqual(tileRect('two-thirds-left', MON.workArea), at(500, 599, {state: left.state}).rect);
+    const right = at(900, 599);
+    assert.deepEqual(tileRect('two-thirds-right', MON.workArea), at(500, 599, {state: right.state}).rect);
+});
+
+test('a Tile follows the work area it is asked for', () => {
+    const second = {x: 1000, y: 0, width: 600, height: 400};
+    assert.deepEqual(tileRect('left', second), {x: 1000, y: 0, width: 300, height: 400});
+    assert.deepEqual(tileRect('full', second), second);
+    assert.deepEqual(tileRect('third-3', second), {x: 1400, y: 0, width: 200, height: 400});
+});
+
+test('a name that is no Tile has no rectangle', () => {
+    assert.equal(tileRect('middle', MON.workArea), null);
+    assert.equal(tileRect(undefined, MON.workArea), null);
 });
