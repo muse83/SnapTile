@@ -53,3 +53,11 @@ windows reopen in their Tile or maximised" (spec: issue #8).
   yet the free size that is stored.
 - A second window of an application is still placed by GNOME; it never goes into a Tile (ticket
   "A second window of an application opens offset from the first").
+- Known limits, found in the review of this ticket and not guarded: a window closed or saved
+  while it is being dragged out of its Tile is saved as a free window (the record is released
+  when the drag starts); a window that goes full screen after it was placed in a Tile keeps the
+  Tile in the record but is not remembered (full screen is left alone, ADR 0009). The smoke
+  tests cover neither this nor the Escape path with a window that has no earlier size.
+- Dropping a window with no known earlier size into another Tile records its size at that
+  moment as the size from before: the user dragged it there, which is the one case where the
+  current size is recorded (ADR 0008).
