@@ -1,0 +1,6 @@
+{
+  "uuid": "placement-probe@snaptile.test",
+  "name": "SnapTile placement probe",
+  "description": "Research only. Records every moment of a new window's life and places it on request; also offers org.snaptile.Test.Eval.",
+  "shell-version": ["50", "51"]
+}
