@@ -2,13 +2,15 @@ import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {appKeyOf, parsePlaces, placementFor, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
+import {appKeyOf, parsePlaces, placementFor, placementForSecondWindow, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
 
 /**
- * Window memory (ADR 0007, ADR 0009, ADR 0010): remembers the place of an application's window when the
+ * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011): remembers the place of an application's window when the
  * user finishes moving or resizing it, when it closes and when the extension is disabled, and
  * puts the next new window of that application there: the size and position of a free window,
- * the Tile of a tiled one (through the drag's own snap path), or maximised. The decisions live
+ * the Tile of a tiled one (through the drag's own snap path), or maximised. A new window of an
+ * application that already has an open window is never put into a Tile or maximised: it opens
+ * free and offset from the open window (placementForSecondWindow). The decisions live
  * in rememberedPlaces.js; this class connects them to the windows and to the settings. It
  * creates only signal connections, which destroy() removes; there is no timer.
  *
@@ -16,17 +18,18 @@ import {appKeyOf, parsePlaces, placementFor, rememberOnClose, rememberWindow, se
  * is stored. The preferences window clears the memory by resetting "places"; the copy kept
  * here follows every change of the stored text, so a clear reaches windows that are open now.
  *
- * Not yet here: a second window of an application (GNOME places it as usual), several
- * monitors that change beyond "the nearest monitor takes it".
+ * Not yet here: several monitors that change beyond "the nearest monitor takes it".
  */
 export class WindowMemory {
     /**
      * @param settings the extension's Gio.Settings
      * @param tiledWindows the shared TiledWindows
      * @param dragSnap the DragSnap, whose snap path puts a reopened window into its Tile
+     * @param monitorSizes the MonitorSizes, to turn 1 cm into pixels for a second window
      */
-    constructor(settings, tiledWindows, dragSnap) {
+    constructor(settings, tiledWindows, dragSnap, monitorSizes) {
         this._settings = settings;
+        this._monitorSizes = monitorSizes;
         this._tiledWindows = tiledWindows;
         this._dragSnap = dragSnap;
         this._places = {};
@@ -193,12 +196,12 @@ export class WindowMemory {
             return; // a window that opens while switched off is "already open" once it is on again
 
         const key = appKeyOf(factsOf(window));
-        if (key === null || this._hasOtherOpenWindow(window, key))
+        if (key === null)
             return;
 
-        const workAreas = Main.layoutManager.monitors.map(
-            (monitor, index) => plainRect(Main.layoutManager.getWorkAreaForMonitor(index)));
-        const placement = placementFor(this._places, key, workAreas);
+        const siblings = this._openWindowsOf(window, key);
+        const isSecond = siblings.length > 0;
+        const placement = this._placementOf(window, key, siblings);
         if (placement === null)
             return;
 
@@ -213,10 +216,38 @@ export class WindowMemory {
         entry.unmaximizedId = window.connect('size-changed', () => {
             window.disconnect(entry.unmaximizedId);
             entry.unmaximizedId = 0;
-            if (!window.is_fullscreen()) // full screen wins, a Tile must not be forced on it
-                this._put(window, placement);
+            if (window.is_fullscreen()) // full screen wins, a Tile must not be forced on it
+                return;
+            // A second window is asked again: its own default size is only known now. A first
+            // window keeps its placement, also if a window of the application opened meanwhile.
+            const placementNow = isSecond ?
+                this._placementOf(window, key, this._openWindowsOf(window, key)) : placement;
+            if (placementNow)
+                this._put(window, placementNow);
         });
         window.unmaximize();
+    }
+
+    /**
+     * Where a new window of the application goes, or null to leave it to GNOME. The first
+     * window gets the remembered place; a further one opens free and offset from the open
+     * windows (ADR 0011). `siblings` are the application's other open windows, the most
+     * recently used first.
+     */
+    _placementOf(window, key, siblings) {
+        const monitors = Main.layoutManager.monitors.map((monitor, index) => ({
+            width: monitor.width, height: monitor.height, ...this._monitorSizes.get(index),
+            workArea: plainRect(Main.layoutManager.getWorkAreaForMonitor(index)),
+        }));
+        if (siblings.length === 0)
+            return placementFor(this._places, key, monitors.map(monitor => monitor.workArea));
+
+        const {width, height} = window.get_frame_rect();
+        return placementForSecondWindow(this._places, key, {
+            defaultSize: {width, height},
+            siblings: siblings.map(other => plainRect(other.get_frame_rect())),
+            monitors,
+        });
     }
 
     /**
@@ -243,14 +274,22 @@ export class WindowMemory {
     }
 
     /**
-     * Whether the application has another window that is shown and not closing. A window that
-     * is only being created, or is fading out, does not count: two windows opened together
-     * must not both be skipped, and a window opened right after one was closed is placed.
+     * The application's other windows that are shown and not closing, the most recently used
+     * first. A window that is only being created, or is fading out, does not count: two
+     * windows opened together must not both be taken for the first, and a window opened right
+     * after one was closed is the first.
      */
-    _hasOtherOpenWindow(window, key) {
-        return global.get_window_actors().some(actor => actor.meta_window !== window &&
-            actor.mapped && this._windows.has(actor.meta_window) &&
-            appKeyOf(factsOf(actor.meta_window)) === key);
+    _openWindowsOf(window, key) {
+        const others = global.get_window_actors()
+            .filter(actor => actor.meta_window !== window && actor.mapped &&
+                this._windows.has(actor.meta_window) && appKeyOf(factsOf(actor.meta_window)) === key)
+            .map(actor => actor.meta_window);
+        const recentFirst = global.display.get_tab_list(Meta.TabList.NORMAL, null);
+        const rank = other => {
+            const index = recentFirst.indexOf(other);
+            return index === -1 ? recentFirst.length : index; // not in the list: oldest
+        };
+        return others.sort((a, b) => rank(a) - rank(b));
     }
 }
 

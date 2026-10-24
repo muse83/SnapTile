@@ -748,6 +748,39 @@ start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
 check "two windows opened together: exactly one is put into the Tile" 1 "[$(frame_of mem-a), $(frame_of mem-a-2)].filter(f => f === '[0,32,640,688]').length"
 stop_apps
 
+echo "  Window memory: a second window of an application opens offset from the first"
+# The headless monitor has no physical size, so 1 cm is the 96 DPI fallback of the Edge zones:
+# 37.8 pixels, 38 once rounded.
+check "the test monitor has no physical size (1 cm is the 96 DPI fallback)" '"{}"' "JSON.stringify(Main.extensionManager.lookup('$UUID').stateObj._monitorSizes.get(0))"
+set_places "$MEM_A"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=2
+sleep 1
+check "the first window opens at the remembered place" '"[120,90,520,360]"' "$(frame_of mem-a)"
+check "the second window has the remembered size and sits 1 cm right and down from the first" '"[158,128,520,360]"' "$(frame_of mem-a-2)"
+check "a third window steps once more" '"[196,166,520,360]"' "$(frame_of mem-a-3)"
+close_window mem-a-2
+close_window mem-a-3
+stop_apps
+
+set_places "$LEFT_TILE"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1
+sleep 1
+check "the first window opens in the remembered Tile" '"[0,32,640,688]|left"' "[$(frame_of mem-a), $(tile_of mem-a)].join('|')"
+check "the second window opens free with the size from before tiling, offset from the Tile's corner" '"[38,70,520,360]|no Tile"' "[$(frame_of mem-a-2), $(tile_of mem-a-2) ?? 'no Tile'].join('|')"
+stop_apps
+
+set_places '{"org.snaptile.MemA": {frame: {x: 0, y: 0, width: 3000, height: 2000}}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1
+sleep 1
+check "a second window with a remembered size larger than the work area is shrunk to it" '"[0,32,1280,688]|[0,32,1280,688]"' "[$(frame_of mem-a), $(frame_of mem-a-2)].join('|')"
+stop_apps
+
+set_places "$MEM_A"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1 PROBE_MAXIMIZE=1
+sleep 1
+check "a second window that maximises itself ends up free, at the offset, not maximised" '"false|[158,128,520,360]"' "[$(titled mem-a-2)[0].is_maximized(), $(frame_of mem-a-2)].join('|')"
+stop_apps
+
 echo "  Window memory: a tiled window is saved when the extension is disabled"
 set_places "$LEFT_TILE"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA

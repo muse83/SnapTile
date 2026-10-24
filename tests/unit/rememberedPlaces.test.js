@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {TILES, tileRect} from '../../src/tileDecision.js';
-import {MAX_APPLICATIONS, appKeyOf, parsePlaces, placementFor, rememberFree, rememberOnClose, rememberWindow, serialisePlaces} from '../../src/rememberedPlaces.js';
+import {MAX_APPLICATIONS, appKeyOf, parsePlaces, placementFor, placementForSecondWindow, rememberFree, rememberOnClose, rememberWindow, serialisePlaces} from '../../src/rememberedPlaces.js';
 
 const FRAME = {x: 100, y: 120, width: 800, height: 600};
 const WORK = {x: 0, y: 32, width: 1920, height: 1048};
@@ -363,6 +363,126 @@ test('the whole-screen Tile is a Tile, not the maximised flag', () => {
     const placement = placementFor({a: {frame: WORK, tile: 'full'}}, 'a', [WORK]);
     assert.equal(placement.kind, 'tile');
     assert.deepEqual(placement.rect, WORK);
+});
+
+// --- a second window of an application ---
+
+// A 1920x1080 panel of 345x194 mm: 55.65 pixels per centimetre, so the offset is 56 pixels.
+const PANEL = {width: 1920, height: 1080, widthMm: 345, heightMm: 194, workArea: WORK};
+const OFFSET = 56;
+const OPEN = {x: 100, y: 120, width: 800, height: 600};
+const OWN = {width: 640, height: 480};
+
+function second(places, siblings, {monitors = [PANEL], defaultSize = OWN} = {}) {
+    return placementForSecondWindow(places, 'org.example.Editor', {defaultSize, siblings, monitors});
+}
+
+test('a second window opens about 1 cm right and down from the open window, with the remembered size', () => {
+    const placement = second({'org.example.Editor': {frame: FRAME}}, [OPEN]);
+    assert.deepEqual(placement, {kind: 'free', rect: {x: 100 + OFFSET, y: 120 + OFFSET, width: 800, height: 600}});
+});
+
+test('without a remembered size the second window keeps its application\'s own default size', () => {
+    const placement = second({}, [OPEN]);
+    assert.deepEqual(placement.rect, {x: 100 + OFFSET, y: 120 + OFFSET, ...OWN});
+});
+
+test('the offset is measured in real centimetres of the monitor the open window is on', () => {
+    const sparse = {...PANEL, widthMm: 690, heightMm: 388}; // the same pixels on a panel twice as big
+    assert.equal(second({}, [OPEN], {monitors: [sparse]}).rect.x, 100 + 28);
+    assert.equal(second({}, [OPEN], {monitors: [PANEL]}).rect.x, 100 + 56);
+});
+
+test('a monitor of unknown size is measured with the 96 DPI fallback of the Edge zones', () => {
+    const unknown = {width: 1920, height: 1080, workArea: WORK};
+    assert.equal(second({}, [OPEN], {monitors: [unknown]}).rect.x, 100 + 38); // 1 cm = 37.8 px
+});
+
+test('the offset of the monitor the open window is on counts, not that of the first monitor', () => {
+    const right = {...PANEL, widthMm: 690, heightMm: 388, workArea: {x: 1920, y: 32, width: 1920, height: 1048}};
+    const open = {x: 2100, y: 120, width: 800, height: 600};
+    assert.equal(second({}, [open], {monitors: [PANEL, right]}).rect.x, 2100 + 28);
+});
+
+test('the offset starts from the most recently used open window, the first of the list', () => {
+    const older = {x: 700, y: 300, width: 400, height: 300};
+    assert.deepEqual(second({}, [OPEN, older]).rect, {x: 100 + OFFSET, y: 120 + OFFSET, ...OWN});
+});
+
+test('a spot another window of the application sits on exactly is stepped over', () => {
+    const taken = {x: 100 + OFFSET, y: 120 + OFFSET, width: 300, height: 200};
+    assert.deepEqual(second({}, [OPEN, taken]).rect, {x: 100 + 2 * OFFSET, y: 120 + 2 * OFFSET, ...OWN});
+});
+
+test('a spot that is only close to another window is not stepped over', () => {
+    const near = {x: 100 + OFFSET + 1, y: 120 + OFFSET, width: 800, height: 600};
+    assert.equal(second({}, [OPEN, near]).rect.x, 100 + OFFSET);
+});
+
+test('several taken spots in a row are all stepped over', () => {
+    const third = [1, 2].map(step => ({x: 100 + step * OFFSET, y: 120 + step * OFFSET, width: 300, height: 200}));
+    assert.deepEqual(second({}, [OPEN, ...third]).rect, {x: 100 + 3 * OFFSET, y: 120 + 3 * OFFSET, ...OWN});
+});
+
+test('stepping stops after 10 steps, the last spot is used even if it is taken', () => {
+    const open = {x: 20, y: 40, width: 300, height: 200};
+    const taken = Array.from({length: 12}, (unused, i) =>
+        ({x: 20 + (i + 1) * OFFSET, y: 40 + (i + 1) * OFFSET, width: 300, height: 200}));
+    const placement = second({}, [open, ...taken]);
+    assert.deepEqual(placement.rect, {x: 20 + 10 * OFFSET, y: 40 + 10 * OFFSET, ...OWN});
+});
+
+test('a second window reaching out of the work area is moved back inside', () => {
+    const nearCorner = {x: 1900, y: 1000, width: 800, height: 600};
+    assert.deepEqual(second({'org.example.Editor': {frame: FRAME}}, [nearCorner]).rect,
+        {x: 1920 - 800, y: 32 + 1048 - 600, width: 800, height: 600});
+});
+
+test('a second window larger than the work area is shrunk to it', () => {
+    const placement = second({'org.example.Editor': {frame: {x: 0, y: 0, width: 5000, height: 4000}}}, [OPEN]);
+    assert.deepEqual(placement.rect, {x: 0, y: 32, width: 1920, height: 1048});
+});
+
+test('a spot is compared after fitting into the work area, where it really ends up', () => {
+    // The second step would reach out to the right and is pulled back to x 1120, where a window sits.
+    const open = {x: 1060, y: 300, width: 800, height: 600};
+    const siblings = [open, {x: 1116, y: 356, width: 800, height: 600}, {x: 1120, y: 412, width: 800, height: 600}];
+    const placement = second({'org.example.Editor': {frame: FRAME}}, siblings);
+    assert.deepEqual(placement.rect, {x: 1120, y: 300 + 3 * OFFSET, width: 800, height: 600});
+});
+
+test('a second window is never put into a Tile, whatever the application remembered', () => {
+    const tiled = {'org.example.Editor': {frame: tileRect('left', WORK), tile: 'left', sizeBefore: {width: 520, height: 360}}};
+    const placement = second(tiled, [tileRect('left', WORK)]);
+    assert.equal(placement.kind, 'free');
+    assert.deepEqual(placement.rect, {x: 0 + OFFSET, y: 32 + OFFSET, width: 520, height: 360});
+});
+
+test('a second window is never maximised, the free size is the one from before', () => {
+    const maximised = {'org.example.Editor': {frame: WORK, maximized: true, sizeBefore: {width: 520, height: 360}}};
+    const placement = second(maximised, [WORK]);
+    assert.equal(placement.kind, 'free');
+    assert.deepEqual(placement.rect, {x: OFFSET, y: 32 + OFFSET, width: 520, height: 360});
+});
+
+test('a tiled or maximised place without a known free size gives the application\'s own default size', () => {
+    const tiled = {'org.example.Editor': {frame: tileRect('right', WORK), tile: 'right'}};
+    assert.deepEqual(second(tiled, [tileRect('right', WORK)]).rect.width, OWN.width);
+});
+
+test('without any monitor the second window is offset with the fallback and not fitted', () => {
+    const placement = second({}, [OPEN], {monitors: []});
+    assert.deepEqual(placement.rect, {x: 100 + 38, y: 120 + 38, ...OWN});
+});
+
+test('placing a second window does not change the places or keep the objects it was given', () => {
+    const places = {'org.example.Editor': {frame: {...FRAME}}};
+    const before = JSON.stringify(places);
+    const siblings = [{...OPEN}];
+    const placement = second(places, siblings);
+    placement.rect.x = -1;
+    assert.equal(JSON.stringify(places), before);
+    assert.equal(siblings[0].x, 100);
 });
 
 // --- which windows count ---

@@ -52,7 +52,8 @@ windows reopen in their Tile or maximised" (spec: issue #8).
 - A maximised window reopens maximised but, when un-maximised, gets Mutter's size for it, not
   yet the free size that is stored.
 - A second window of an application is still placed by GNOME; it never goes into a Tile (ticket
-  "A second window of an application opens offset from the first").
+  "A second window of an application opens offset from the first"). Superseded: SnapTile now
+  places it itself, see ADR 0011.
 - Known limits, found in the review of this ticket and not guarded: a window closed or saved
   while it is being dragged out of its Tile is saved as a free window (the record is released
   when the drag starts); a window that goes full screen after it was placed in a Tile keeps the

@@ -6,6 +6,8 @@ PROBE_TITLE=name sets the window title (default probe-window), to tell two windo
 PROBE_APP_ID=id sets the application id (default: a new one per start), so a second start is "the same application".
 PROBE_DIALOG=1 opens a modal dialog window (title probe-dialog, 300x150) 1.5 seconds after the window appears.
 PROBE_SECOND=1 opens a second window of the application (title as the first plus -2) at the same time.
+PROBE_LATER=N opens N more windows (title as the first plus -2, -3, ...), one every 1.5 seconds after the window appears.
+With PROBE_MAXIMIZE=1 they ask to be maximised too.
 PROBE_FULLSCREEN=1 goes full screen 1.5 seconds after the window appears.
 PROBE_MAXIMIZE=1 asks to be maximised before the window is shown, like an application restoring itself.
 PROBE_PLAIN_WINDOW=1 makes it a plain Gtk.Window of the application instead of an application window (no GTK
@@ -73,6 +75,16 @@ def activate(app):
         second.set_default_size(400, 300)
         second.set_child(Gtk.Label(label='second'))
         second.present()
+    for number in range(2, 2 + int(os.environ.get('PROBE_LATER', '0'))):
+        def open_later(number=number):
+            later = Gtk.ApplicationWindow(application=app, title='%s-%d' % (title, number))
+            later.set_default_size(400, 300)
+            later.set_child(Gtk.Label(label='later'))
+            if os.environ.get('PROBE_MAXIMIZE'):
+                later.maximize()
+            later.present()
+            return GLib.SOURCE_REMOVE
+        GLib.timeout_add(1500 * (number - 1), open_later)
 
 
 app = Gtk.Application(application_id=os.environ.get('PROBE_APP_ID') or 'org.snaptile.Probe' + str(os.getpid()))

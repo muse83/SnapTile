@@ -12,7 +12,7 @@
 //                                        is the last position, as a fallback for the monitor
 // sizeBefore is {width, height}. An unknown free size is never invented: it is left out.
 
-import {TILES, tileRect} from './tileDecision.js';
+import {TILES, pixelsPerCm, tileRect} from './tileDecision.js';
 
 // The file chooser Nautilus opens for another application is a plain window of Nautilus
 // without a parent (docs/research/window-placement-on-wayland.md), so it only differs from a
@@ -21,6 +21,12 @@ const NAUTILUS = 'org.gnome.Nautilus';
 
 /** How many applications are kept; the least recently used are dropped first (ADR 0007). */
 export const MAX_APPLICATIONS = 200;
+
+/** How far a second window of an application is moved right and down from an open one (ADR 0011). */
+const SECOND_WINDOW_OFFSET_CM = 1;
+
+/** How many times the offset is added at most when the spot is taken, counted from the open window. */
+const MAX_OFFSET_STEPS = 10;
 
 function isFrame(value) {
     return typeof value === 'object' && value !== null &&
@@ -210,17 +216,50 @@ export function placementFor(places, key, workAreas) {
         };
     }
 
+    return {kind: 'free', rect: fitInto(frame, area)};
+}
+
+/** The frame shrunk to the work area if it is larger, and moved back inside if it reaches out. */
+function fitInto(frame, area) {
     const width = Math.min(frame.width, area.width);
     const height = Math.min(frame.height, area.height);
     return {
-        kind: 'free',
-        rect: {
-            x: Math.min(Math.max(frame.x, area.x), area.x + area.width - width),
-            y: Math.min(Math.max(frame.y, area.y), area.y + area.height - height),
-            width,
-            height,
-        },
+        x: Math.min(Math.max(frame.x, area.x), area.x + area.width - width),
+        y: Math.min(Math.max(frame.y, area.y), area.y + area.height - height),
+        width,
+        height,
     };
+}
+
+/**
+ * Where a new window goes when the application already has an open window (ADR 0007, ADR 0011): free,
+ * never in a Tile and never maximised, with the free size the application remembers (else
+ * its own default size), at the position of the most recently used open window moved 1 cm
+ * right and down. A spot another window of the application sits on exactly is stepped over
+ * with the same offset, at most MAX_OFFSET_STEPS offsets from the open window; the last
+ * spot is used even if it is taken. The result is fitted into the work area of the monitor
+ * the open window is on (without any monitor it is not fitted).
+ * @param {{defaultSize: {width: number, height: number}, siblings: object[], monitors: object[]}} context
+ *   defaultSize: the new window's own size, used when no free size is remembered;
+ *   siblings: the frames of the application's other open windows, the most recently used
+ *   first (at least one); monitors: for each monitor `workArea` and, as for the Edge zones,
+ *   `width`, `height`, `widthMm`, `heightMm` (the last two may be missing)
+ * @returns {{kind: 'free', rect: object}}
+ */
+export function placementForSecondWindow(places, key, {defaultSize, siblings, monitors}) {
+    const open = siblings[0];
+    const size = freeSizeOf(places[key]) ?? copySize(defaultSize);
+    const monitor = monitors[nearestIndex(monitors.map(m => m.workArea), open)] ?? {};
+    const step = Math.round(SECOND_WINDOW_OFFSET_CM * pixelsPerCm(monitor));
+    const fit = frame => monitor.workArea ? fitInto(frame, monitor.workArea) : frame;
+
+    let rect;
+    for (let steps = 1; steps <= MAX_OFFSET_STEPS; steps++) {
+        rect = fit({x: open.x + steps * step, y: open.y + steps * step, ...size});
+        if (!siblings.some(sibling => sibling.x === rect.x && sibling.y === rect.y))
+            break;
+    }
+    return {kind: 'free', rect};
 }
 
 /**

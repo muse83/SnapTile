@@ -15,6 +15,11 @@ reappears the same way: size and position, or the Tile, or maximised. One place 
 application; the window last moved, resized or closed counts. Has a switch and a clear button
 in the Extensions manager. Dialogs are never part of it.
 
+**Second window**:
+A new window of an application that already has an open window. It does not use the Remembered
+place's position: it opens free (never in a Tile, never maximised) with the remembered free size,
+about 1 cm right and down from the most recently used open window.
+
 **Remembered place**:
 What Window memory keeps for one application: size and position of a free window, or the Tile
 and the size from before tiling for a tiled one, or the maximised flag, plus the monitor.
