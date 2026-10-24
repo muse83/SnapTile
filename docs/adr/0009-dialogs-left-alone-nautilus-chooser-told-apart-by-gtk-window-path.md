@@ -61,3 +61,12 @@ reopens at its remembered size and position" (spec: issue #8).
 - Smoke tests use a stand-in application (a plain window with the Nautilus application id).
   The real Nautilus and its real file chooser were checked once with the extension enabled
   (research note, section 6).
+- Saving (ticket "Saving is reliable", spec: issue #8): "last action" is a counter per open
+  window, set when the user lets go after moving or resizing. A closing window is skipped if a
+  sibling has a higher number. Known limits: a sibling that was tiled or maximised after its
+  last save still blocks the close of an older window until the tiled and maximised ticket
+  handles it; windows missing from the shell's tab list count as oldest when the extension is
+  disabled; the order of use is the key order of the stored object, so purely numeric
+  application keys would be misordered (not expected for application ids or window classes).
+  The move/resize save relies on drag-to-snap handling the same signal first (it is enabled
+  first), so a drop into a Tile is not saved as a free place.
