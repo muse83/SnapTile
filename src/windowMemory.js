@@ -1,17 +1,17 @@
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {appKeyOf, parsePlaces, placeFor, rememberFree, serialisePlaces} from './rememberedPlaces.js';
+import {appKeyOf, parsePlaces, placeFor, rememberFree, rememberOnClose, serialisePlaces} from './rememberedPlaces.js';
 
 /**
  * Window memory for free windows (ADR 0007, ADR 0009): remembers the size and position of an
- * application's window when it closes and puts the next new window of that application
- * there. The decisions live in rememberedPlaces.js; this class connects them to the windows
- * and to the settings. It creates only signal connections, which destroy() removes.
+ * application's window when the user finishes moving or resizing it, when it closes and when
+ * the extension is disabled, and puts the next new window of that application there. The
+ * decisions live in rememberedPlaces.js; this class connects them to the windows and to the
+ * settings. It creates only signal connections, which destroy() removes; there is no timer.
  *
  * Not yet here: tiled and maximised windows, a second window of an application (GNOME
- * places it as usual), saving while a window is still open, the limit of 200 applications,
- * the switch and the clear button, several monitors that change.
+ * places it as usual), the switch and the clear button, several monitors that change.
  */
 export class WindowMemory {
     /** @param settings the extension's Gio.Settings, @param tiledWindows the shared TiledWindows */
@@ -20,10 +20,13 @@ export class WindowMemory {
         this._tiledWindows = tiledWindows;
         this._places = {};
         this._signals = [];
-        // Every window watched until it closes: {closingId, arriving, unmaximizedId}. Arriving
-        // marks a window created since enable that is not placed yet; unmaximizedId is the
-        // wait for a window that maximised itself to say it has its free size back.
+        // Every window watched until it closes: {closingId, arriving, unmaximizedId, savedAt}.
+        // Arriving marks a window created since enable that is not placed yet; unmaximizedId is
+        // the wait for a window that maximised itself to say it has its free size back; savedAt
+        // is when the window last saved its place (a number from _saves, 0: never), to tell
+        // which of an application's windows saved last.
         this._windows = new Map();
+        this._saves = 0;
     }
 
     /** Call from the extension's enable(). Windows that are open now are never moved. */
@@ -36,12 +39,15 @@ export class WindowMemory {
         this._signals.push(
             [global.display, global.display.connect('window-created',
                 (display, window) => this._watch(window, true))],
+            [global.display, global.display.connect('grab-op-end',
+                (display, window) => this._saveAfterGrab(window))],
             [global.window_manager, global.window_manager.connect('map',
                 (manager, actor) => this._place(actor.meta_window))]);
     }
 
-    /** Call from the extension's disable(). */
+    /** Call from the extension's disable(). Saves every open window first. */
     destroy() {
+        this._saveOpenWindows();
         for (const [object, id] of this._signals)
             object.disconnect(id);
         this._signals = [];
@@ -57,21 +63,72 @@ export class WindowMemory {
         if (this._windows.has(window))
             return;
         const closingId = window.connect('unmanaging', () => {
-            this._remember(window);
+            this._saveOnClose(window);
             this._windows.delete(window); // the window is going away, its connections with it
         });
-        this._windows.set(window, {closingId, arriving, unmaximizedId: 0});
+        this._windows.set(window, {closingId, arriving, unmaximizedId: 0, savedAt: 0});
     }
 
-    _remember(window) {
+    /**
+     * The key of the application whose place this window may save, or null. Tiled and
+     * maximised windows are not at their free size; until they are handled, they leave the
+     * remembered place as it is.
+     */
+    _savableKey(window) {
         const key = appKeyOf(factsOf(window));
-        // Tiled and maximised windows are not at their free size; until they are handled, they
-        // leave the remembered place as it is.
         if (key === null || window.is_maximized() || this._tiledWindows.get(window.get_id()))
-            return;
+            return null;
+        return key;
+    }
 
-        this._places = rememberFree(this._places, key, plainRect(window.get_frame_rect()));
-        this._settings.set_string('places', serialisePlaces(this._places));
+    /** The user let go of a window after moving or resizing it (mouse or keyboard). */
+    _saveAfterGrab(window) {
+        const entry = this._windows.get(window);
+        const key = entry && this._savableKey(window);
+        if (!key)
+            return;
+        entry.savedAt = ++this._saves;
+        this._store(rememberFree(this._places, key, plainRect(window.get_frame_rect())));
+    }
+
+    /** A window closes: its place counts unless another window of the application saved later. */
+    _saveOnClose(window) {
+        const entry = this._windows.get(window);
+        const key = this._savableKey(window);
+        if (!key)
+            return;
+        const others = [...this._windows]
+            .filter(([other]) => other !== window && appKeyOf(factsOf(other)) === key)
+            .map(([, otherEntry]) => otherEntry.savedAt);
+        this._store(rememberOnClose(
+            this._places, key, plainRect(window.get_frame_rect()), entry.savedAt, others));
+    }
+
+    /**
+     * The extension is being disabled: every open window saves its place, the one used most
+     * recently last so that it wins.
+     */
+    _saveOpenWindows() {
+        const recentFirst = global.display.get_tab_list(Meta.TabList.NORMAL, null);
+        const rank = window => {
+            const index = recentFirst.indexOf(window);
+            return index === -1 ? recentFirst.length : index; // not in the list: oldest
+        };
+        let places = this._places;
+        for (const window of [...this._windows.keys()].sort((a, b) => rank(b) - rank(a))) {
+            const key = this._savableKey(window);
+            if (key)
+                places = rememberFree(places, key, plainRect(window.get_frame_rect()));
+        }
+        this._store(places);
+    }
+
+    /** Keeps the places and writes them to the settings if they changed. */
+    _store(places) {
+        if (places === this._places)
+            return;
+        this._places = places;
+        this._settings.set_string('places', serialisePlaces(places));
     }
 
     /** Called when a window is shown; places it if it is a new one with a remembered place. */

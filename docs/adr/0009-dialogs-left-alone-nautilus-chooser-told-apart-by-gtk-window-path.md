@@ -27,12 +27,15 @@ reopens at its remembered size and position" (spec: issue #8).
 - **Only the first window of an application is placed for now.** If the application already has
   an open window that counts, GNOME places the new one as usual. The offset for a second window
   is a later ticket (ADR 0007).
-- **What is remembered for now.** The frame of a free window at close. Tiled and maximised
+- **What is remembered for now.** The frame of a free window, when the user lets go of it
+  after moving or resizing, when it closes, and for every open window when the extension is
+  disabled (most recently used last, so it wins). A closing window does not overwrite what
+  another open window of the same application saved after it. Tiled and maximised
   windows leave the remembered place as it is until their ticket. Windows that were open when
   the extension was enabled are never moved, but their close is remembered.
 - **Stored data.** One text value in the extension's settings schema, application key to
-  frame, in order of use. The extension reads it once when enabled and keeps a copy. The limit
-  of 200 applications (ADR 0007) is not built yet, so the text can grow until it is.
+  frame, in order of use, at most 200 applications (ADR 0007). The extension reads it once when
+  enabled and keeps a copy.
 - **Full screen.** A window is checked when it is shown and again when it closes; a window that
   went full screen in between is not remembered.
 

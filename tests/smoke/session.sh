@@ -635,6 +635,45 @@ start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
 check "SnapTile's place wins against an application that maximises itself" '"[120,90,520,360]"' "$(frame_of mem-a)"
 stop_apps
 
+echo "  Window memory: saved when a move or resize ends, last action wins, saved when the extension is disabled"
+# Windows are put in place through Mutter (no grab, so nothing is saved by that), then moved and
+# resized with the virtual pointer on the title bar and on the corner, like a user.
+drag_title() { # drag_title <x> <y> <dx> <dy>: press at x,y on a title bar, move by dx,dy, let go
+    move "$1" "$2"; button PRESSED
+    move $(($1 + $3 / 2)) $(($2 + $4 / 2)); move $(($1 + $3)) $(($2 + $4))
+    button RELEASED; sleep 1
+}
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
+place_window mem-a 50 100 400 300
+place_window mem-a-2 600 100 400 300
+check "putting a window in place through Mutter saves nothing by itself" '""' "$PLACES"
+drag_title 250 114 0 150
+check "a move is saved as soon as it ends, the window stays open" '"org.snaptile.MemA=50,250,400,300"' "$PLACES"
+drag_title 800 114 0 100
+check "a later move of another window of the application is saved" '"org.snaptile.MemA=600,200,400,300"' "$PLACES"
+close_window mem-a
+check "closing the older window does not undo the newer move of the other window" '"org.snaptile.MemA=600,200,400,300"' "$PLACES"
+drag_title 1002 502 60 50
+check "a resize is saved as soon as it ends" '"org.snaptile.MemA=600,200,460,350"' "$PLACES"
+close_window mem-a-2
+check "closing the last window keeps its place" '"org.snaptile.MemA=600,200,460,350"' "$PLACES"
+stop_apps
+
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
+place_window mem-a 50 100 400 300
+place_window mem-a-2 600 100 400 300
+ev "$(titled mem-a)[0].activate(global.get_current_time()), 1" >/dev/null
+ev "$DISABLE" >/dev/null
+check "disabling saves the open windows, the one used last wins (first window)" '"org.snaptile.MemA=50,100,400,300"' "$PLACES"
+ev "$ENABLE" >/dev/null
+ev "$(titled mem-a-2)[0].activate(global.get_current_time()), 1" >/dev/null
+ev "$DISABLE" >/dev/null
+check "disabling saves the open windows, the one used last wins (second window)" '"org.snaptile.MemA=600,100,400,300"' "$PLACES"
+ev "$ENABLE" >/dev/null
+stop_apps
+
 echo "  Window memory: nothing is left behind when the extension is disabled"
 # Every signal connection made from windowMemory.js is recorded (and forgotten when it is
 # disconnected). Connections on windows that are gone do not count.

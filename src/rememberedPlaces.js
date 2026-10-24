@@ -2,8 +2,6 @@
 // under plain Node tests. Adapted from the decision part of the reference window memory
 // (reference/window-memory/src/frameMemory.ts), cut down to what free windows need.
 //
-// Not yet here: the limit of 200 applications (least recently used dropped, ADR 0007).
-//
 // The places are one plain object, application key -> {frame: {x, y, width, height}}. The key
 // order is the order of use, the application used last comes last.
 
@@ -11,6 +9,9 @@
 // without a parent (docs/research/window-placement-on-wayland.md), so it only differs from a
 // file-manager window by having no GTK window path.
 const NAUTILUS = 'org.gnome.Nautilus';
+
+/** How many applications are kept; the least recently used are dropped first (ADR 0007). */
+export const MAX_APPLICATIONS = 200;
 
 function isFrame(value) {
     return typeof value === 'object' && value !== null &&
@@ -39,7 +40,18 @@ export function parsePlaces(text) {
         if (typeof entry === 'object' && entry !== null && isFrame(entry.frame))
             places[key] = {frame: copyFrame(entry.frame)};
     }
-    return places;
+    return trim(places);
+}
+
+/** The places without the least recently used applications beyond the limit. */
+function trim(places) {
+    const keys = Object.keys(places);
+    if (keys.length <= MAX_APPLICATIONS)
+        return places;
+    const result = {};
+    for (const key of keys.slice(keys.length - MAX_APPLICATIONS))
+        result[key] = places[key];
+    return result;
 }
 
 /** The text to store for these places. */
@@ -58,7 +70,22 @@ export function rememberFree(places, key, frame) {
     const result = {...places};
     delete result[key]; // re-insert, so the most recently used application stays last
     result[key] = {frame: copyFrame(frame)};
-    return result;
+    return trim(result);
+}
+
+/**
+ * The places after a free window of the application closed. The window last moved or resized
+ * counts, so a window that closes does not overwrite what another window of the same
+ * application saved after it: then the given places are returned as they are. Otherwise the
+ * closing window was the last action, as in rememberFree.
+ * @param {number} closingSavedAt when the closing window last saved its place (0: never)
+ * @param {number[]} otherSavedAts the same for the application's other open windows; later
+ *   saves have higher numbers
+ */
+export function rememberOnClose(places, key, frame, closingSavedAt, otherSavedAts) {
+    if (otherSavedAts.some(savedAt => savedAt > closingSavedAt))
+        return places;
+    return rememberFree(places, key, frame);
 }
 
 /**

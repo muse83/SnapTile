@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {appKeyOf, parsePlaces, placeFor, rememberFree, serialisePlaces} from '../../src/rememberedPlaces.js';
+import {MAX_APPLICATIONS, appKeyOf, parsePlaces, placeFor, rememberFree, rememberOnClose, serialisePlaces} from '../../src/rememberedPlaces.js';
 
 const FRAME = {x: 100, y: 120, width: 800, height: 600};
 const WORK = {x: 0, y: 32, width: 1920, height: 1048};
@@ -70,6 +70,70 @@ test('a window that closed before it ever had a size is not remembered', () => {
     const before = {a: {frame: FRAME}};
     assert.deepEqual(rememberFree(before, 'b', {x: 0, y: 0, width: 0, height: 0}), before);
     assert.deepEqual(rememberFree(before, 'a', {x: 0, y: 0, width: 0, height: 0}), before);
+});
+
+// --- last action wins ---
+
+test('closing a window that was moved last remembers its frame', () => {
+    const before = {a: {frame: FRAME}};
+    const moved = {...FRAME, x: 5};
+    assert.deepEqual(rememberOnClose(before, 'a', moved, 3, [1, 2]), {a: {frame: moved}});
+});
+
+test('closing a window does not overwrite a younger save of another window of the application', () => {
+    const before = {a: {frame: FRAME}};
+    assert.equal(rememberOnClose(before, 'a', {...FRAME, x: 5}, 2, [1, 7]), before);
+});
+
+test('a window never saved is older than a window that was', () => {
+    const before = {a: {frame: FRAME}};
+    assert.equal(rememberOnClose(before, 'a', {...FRAME, x: 5}, 0, [4]), before);
+});
+
+test('when no window of the application was saved, the closing one is the last action', () => {
+    const closed = {...FRAME, x: 5};
+    assert.deepEqual(rememberOnClose({}, 'a', closed, 0, [0, 0]), {a: {frame: closed}});
+    assert.deepEqual(rememberOnClose({}, 'a', closed, 0, []), {a: {frame: closed}});
+});
+
+// --- how many applications are kept ---
+
+const manyApplications = count => {
+    let places = {};
+    for (let i = 0; i < count; i++)
+        places = rememberFree(places, `app.n${i}`, {...FRAME, x: i});
+    return places;
+};
+
+test('at most 200 applications are kept', () => {
+    assert.equal(MAX_APPLICATIONS, 200);
+    assert.equal(Object.keys(manyApplications(200)).length, 200);
+    assert.equal(Object.keys(manyApplications(250)).length, 200);
+});
+
+test('the least recently used applications are dropped first', () => {
+    const places = manyApplications(250);
+    const keys = Object.keys(places);
+    assert.equal(keys[0], 'app.n50');
+    assert.equal(keys[199], 'app.n249');
+    assert.equal(places['app.n49'], undefined);
+});
+
+test('using an old application again saves it from being dropped', () => {
+    let places = manyApplications(200);
+    places = rememberFree(places, 'app.n0', FRAME); // the oldest is used again
+    places = rememberFree(places, 'app.new', FRAME); // one too many: n1 is now the oldest
+    assert.ok(places['app.n0']);
+    assert.equal(places['app.n1'], undefined);
+    assert.equal(Object.keys(places).length, 200);
+});
+
+test('stored data with more than 200 applications is cut to the 200 most recent when read', () => {
+    const stored = serialisePlaces(manyApplications(200));
+    const text = JSON.stringify({old: {frame: FRAME}, ...JSON.parse(stored)});
+    const places = parsePlaces(text);
+    assert.equal(Object.keys(places).length, 200);
+    assert.equal(places.old, undefined);
 });
 
 // --- where a new window goes ---
