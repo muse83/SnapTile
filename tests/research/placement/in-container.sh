@@ -8,6 +8,7 @@ export XDG_CURRENT_DESKTOP=GNOME # the desktop portal picks its GNOME backend fr
 rm -rf "$XDG_RUNTIME_DIR" "$EXT_DIR"
 mkdir -p -m 700 "$XDG_RUNTIME_DIR" "$EXT_DIR"
 cp -r "$REPO/src" "$EXT_DIR/snaptile@muse83"
+glib-compile-schemas "$EXT_DIR/snaptile@muse83/schemas"
 cp -r "$REPO/tests/research/placement/placement-probe@snaptile.test" "$EXT_DIR/"
 # Portal backend for the file chooser: PORTAL_CHOOSER=gtk|gnome (default gnome, the real GNOME choice).
 mkdir -p "$HOME/.config/xdg-desktop-portal"

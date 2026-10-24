@@ -472,7 +472,7 @@ sleep 1
 
 echo "Disabling SnapTile during and right after a drag:"
 # Records the timers SnapTile starts and still has pending (not removed, not finished).
-ev '(() => { const GLib = imports.gi.GLib; const add = GLib.timeout_add, remove = GLib.source_remove; globalThis.__timers = new Set(); GLib.timeout_add = function (priority, ms, fn) { const ours = new Error().stack.includes("dragSnap.js"); const id = add.call(GLib, priority, ms, ours ? () => { const again = fn(); if (!again) globalThis.__timers.delete(id); return again; } : fn); if (ours) globalThis.__timers.add(id); return id; }; GLib.source_remove = function (id) { globalThis.__timers.delete(id); return remove.call(GLib, id); }; return 1; })()' >/dev/null
+ev '(() => { const GLib = imports.gi.GLib; const add = GLib.timeout_add, remove = GLib.source_remove; globalThis.__timers = new Set(); GLib.timeout_add = function (priority, ms, fn) { const ours = new Error().stack.includes("dragSnap.js") || new Error().stack.includes("windowMemory.js"); const id = add.call(GLib, priority, ms, ours ? () => { const again = fn(); if (!again) globalThis.__timers.delete(id); return again; } : fn); if (ours) globalThis.__timers.add(id); return id; }; GLib.source_remove = function (id) { globalThis.__timers.delete(id); return remove.call(GLib, id); }; return 1; })()' >/dev/null
 TIMERS='globalThis.__timers.size'
 start_probe
 grab_window
@@ -501,6 +501,156 @@ check "extension is inactive after disabling right after a drop" $INACTIVE "$STA
 check "no preview left after disabling right after a drop" '"[]"' "$PREVIEW"
 kill $WINDOW_PID 2>/dev/null
 SHELL_LOGS=("$SHELL_LOG")
+
+echo "Window memory (free windows):"
+# Probe windows are told apart by application id (PROBE_APP_ID) and title. The memory keys by
+# application, so the same id on a second start is "the same application". The extension keeps a
+# copy of the stored places, so a test that changes them behind its back reloads the extension.
+gsettings set org.gnome.desktop.interface enable-animations false
+reload_extension() { ev "$DISABLE" >/dev/null; ev "$ENABLE" >/dev/null; }
+reload_extension
+MEM='Main.extensionManager.lookup("'"$UUID"'").stateObj.getSettings()'
+PLACES="Object.entries(JSON.parse($MEM.get_string('places'))).map(([key, entry]) => key + '=' + Object.values(entry.frame)).join(';')"
+store_places() { ev "$MEM.set_string('places', JSON.stringify($1)), 1" >/dev/null; } # store_places <js object>
+set_places() { store_places "$1"; reload_extension; }
+reset_places() { ev "$MEM.reset('places'), 1" >/dev/null; reload_extension; }
+titled() { echo "global.get_window_actors().map(a => a.meta_window).filter(w => w.title === '$1')"; } # titled <title>: JS for the windows with that title
+frame_of() { # frame_of <title>: JS for the frame rectangle of that window, or null
+    echo "JSON.stringify($(titled "$1").map(w => { const r = w.get_frame_rect(); return [r.x, r.y, r.width, r.height]; })[0] ?? null)"
+}
+MEM_PIDS=()
+start_app() { # start_app <title> <ENV=value>...: a probe window, ready after 4 s
+    local title=$1; shift
+    env PROBE_TITLE="$title" "$@" WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >"/tmp/smoke-memory-$title.log" 2>&1 &
+    MEM_PIDS+=($!)
+    sleep 4
+}
+close_window() { # close_window <title>: asks the window to close, like its close button
+    ev "$(titled "$1").forEach(w => w.delete(global.get_current_time())), 1" >/dev/null
+    sleep 1.5
+}
+place_window() { # place_window <title> x y w h: moves the window like the user would (through Mutter)
+    ev "$(titled "$1")[0].move_resize_frame(true, $2, $3, $4, $5), 1" >/dev/null
+    sleep 1
+}
+stop_apps() { kill "${MEM_PIDS[@]}" 2>/dev/null; MEM_PIDS=(); sleep 1; }
+MEM_A='{"org.snaptile.MemA": {frame: {x: 120, y: 90, width: 520, height: 360}}}'
+
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "an application with nothing remembered keeps its own size and place" '"[440,226,400,300]"' "$(frame_of mem-a)"
+place_window mem-a 120 90 520 360
+close_window mem-a
+check "closing a window remembers its size and position, per application" '"org.snaptile.MemA=120,90,520,360"' "$PLACES"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "the application's next window opens with the same size and position" '"[120,90,520,360]"' "$(frame_of mem-a)"
+start_app mem-b PROBE_APP_ID=org.snaptile.MemB
+check "a second application is not affected" '"[440,226,400,300]"' "$(frame_of mem-b)"
+stop_apps
+
+echo "  Window memory: windows that count, and windows that do not"
+set_places "$MEM_A"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
+check "two windows opened together: exactly one is put at the remembered place" 1 "[$(frame_of mem-a), $(frame_of mem-a-2)].filter(f => f === '[120,90,520,360]').length"
+stop_apps
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_FULLSCREEN=1
+sleep 1
+close_window mem-a
+check "a window that went full screen is not remembered" '""' "$PLACES"
+stop_apps
+
+echo "  Window memory: dialogs are left alone"
+# The dialog has no application id, so a memory that did not skip it would key it by its window
+# class "python3". Such an entry is put in place as bait: the dialog must neither go there nor
+# be stored.
+reset_places
+set_places '{"python3": {frame: {x: 700, y: 400, width: 333, height: 222}}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_DIALOG=1
+DIALOG_UNTOUCHED='(() => { const frame = n => global.get_window_actors().map(a => a.meta_window).find(w => w.title === n).get_frame_rect(); const main = frame("mem-a"), dialog = frame("probe-dialog"); return [dialog.width, dialog.height, dialog.x === main.x + Math.round((main.width - dialog.width) / 2)].join(); })()'
+check "a dialog keeps its own size and sits centred on its window, not at a remembered place" '"300,150,true"' "$DIALOG_UNTOUCHED"
+place_window mem-a 120 90 520 360
+close_window probe-dialog
+check "closing a dialog remembers nothing" '"python3=700,400,333,222"' "$PLACES"
+close_window mem-a
+check "the main window's place is the one remembered, not the dialog's" '"python3=700,400,333,222;org.snaptile.MemA=120,90,520,360"' "$PLACES"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "the application's window reopens where the main window was, not at the dialog's size" '"[120,90,520,360]"' "$(frame_of mem-a)"
+stop_apps
+
+echo "  Window memory: Nautilus's file chooser is left alone, its file manager is remembered"
+reset_places
+# Stand-ins: a normal application window and a plain window (no GTK window path) of the same
+# application, like the parentless chooser (docs/research/window-placement-on-wayland.md).
+start_app files PROBE_APP_ID=org.gnome.Nautilus
+check "stand-in for a file-manager window has a GTK window path" true "$(titled files).every(w => w.get_gtk_window_object_path() !== null)"
+place_window files 150 100 600 400
+close_window files
+check "a Nautilus file-manager window is remembered" '"org.gnome.Nautilus=150,100,600,400"' "$PLACES"
+start_app chooser PROBE_APP_ID=org.gnome.Nautilus PROBE_PLAIN_WINDOW=1
+check "stand-in for the chooser is a Nautilus window without GTK window path" true "$(titled chooser).every(w => w.get_gtk_window_object_path() === null && w.get_gtk_application_id() === 'org.gnome.Nautilus')"
+check "the chooser is not moved to the file manager's place" '"[440,226,400,300]"' "$(frame_of chooser)"
+place_window chooser 300 200 450 350
+close_window chooser
+check "closing the chooser does not overwrite the file manager's place" '"org.gnome.Nautilus=150,100,600,400"' "$PLACES"
+stop_apps
+
+echo "  Window memory: open windows, corrupt data, big sizes, windows that maximise themselves, disabling"
+ev "$DISABLE" >/dev/null
+store_places "$MEM_A"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+ev "$ENABLE" >/dev/null
+sleep 1
+check "a window that was open when the extension was enabled is not moved" '"[440,226,400,300]"' "$(frame_of mem-a)"
+stop_apps
+ev "$DISABLE" >/dev/null
+store_places "$MEM_A"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "with the extension disabled nothing is placed" '"[440,226,400,300]"' "$(frame_of mem-a)"
+place_window mem-a 10 40 300 300
+close_window mem-a
+check "with the extension disabled nothing is remembered" '"org.snaptile.MemA=120,90,520,360"' "$PLACES"
+stop_apps
+ev "$ENABLE" >/dev/null
+
+ev "$MEM.set_string('places', 'not json at all'), 1" >/dev/null
+reload_extension
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "unreadable stored data reads as nothing remembered" '"[440,226,400,300]"' "$(frame_of mem-a)"
+stop_apps
+
+set_places '{"org.snaptile.MemA": {frame: {x: 120, y: 90, width: 520, height: 360}}, "org.snaptile.MemB": {frame: {x: "left", y: 0, width: 5, height: 5}}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+start_app mem-b PROBE_APP_ID=org.snaptile.MemB
+check "a corrupt entry is dropped and the good one still works" '"[120,90,520,360]|[440,226,400,300]"' "[$(frame_of mem-a), $(frame_of mem-b)].join('|')"
+stop_apps
+
+set_places '{"org.snaptile.MemA": {frame: {x: 0, y: 0, width: 3000, height: 2000}}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "a remembered size larger than the work area is shrunk to it" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+stop_apps
+
+set_places "$MEM_A"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
+check "SnapTile's place wins against an application that maximises itself" '"[120,90,520,360]"' "$(frame_of mem-a)"
+stop_apps
+
+echo "  Window memory: nothing is left behind when the extension is disabled"
+# Every signal connection made from windowMemory.js is recorded (and forgotten when it is
+# disconnected). Connections on windows that are gone do not count.
+ev "$DISABLE" >/dev/null
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+ev '(() => { const proto = imports.gi.GObject.Object.prototype, connect = proto.connect, disconnect = proto.disconnect; globalThis.__conns = []; proto.connect = function (name, fn) { const id = connect.call(this, name, fn); if (new Error().stack.includes("windowMemory.js")) globalThis.__conns.push([this, id]); return id; }; proto.disconnect = function (id) { globalThis.__conns = globalThis.__conns.filter(([object, other]) => object !== this || other !== id); return disconnect.call(this, id); }; return 1; })()' >/dev/null
+CONNS='globalThis.__conns.filter(([object]) => !(object instanceof imports.gi.Meta.Window) || global.get_window_actors().some(a => a.meta_window === object)).length'
+ev "$ENABLE" >/dev/null
+start_app mem-b PROBE_APP_ID=org.snaptile.MemB PROBE_MAXIMIZE=1
+check "while enabled it holds signal connections (display, shell, one per open window)" true "$CONNS >= 4"
+ev "$DISABLE" >/dev/null
+check "no signal connection of the window memory is left after disabling" 0 "$CONNS"
+check "no timer is left after the window memory ran" 0 "$TIMERS"
+stop_apps
+ev "$ENABLE" >/dev/null
+gsettings set org.gnome.desktop.interface enable-animations true
 
 echo "Two monitors (1280x720 with the top bar, 1024x768 to its right):"
 kill $SHELL_PID 2>/dev/null

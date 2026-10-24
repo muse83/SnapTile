@@ -265,6 +265,24 @@ Placed at `map` onto the second (`[1400,100,700,450]`), the first visible frame 
 there and the window reports `monitor 1`. Not tested: monitor removal and fitting (a later
 ticket), differing scale factors.
 
+## 6. The window memory built on these findings, with the real Nautilus
+
+Checked after the first implementation (`tests/research/placement/session.sh nautilusmemory`,
+SnapTile enabled, real Nautilus 50.3.1 / 51.1 and its real file chooser through the portal;
+identical on GNOME 50 and 51):
+
+```
+file manager opens:            ["tmp", 195, 101, 890, 550]    (GNOME's own place)
+moved to 150,100 700x450 and closed, stored: org.gnome.Nautilus -> 150,100,700,450
+file manager opened again:     ["tmp", 150, 100, 700, 450]    (remembered)
+parentless file chooser opens: ["portal-dialog", 195, 101, 890, 550]   (GNOME's own place, not 150,100)
+chooser moved to 300,200 500x400 and closed, stored: org.gnome.Nautilus -> still 150,100,700,450
+```
+
+So an ordinary Nautilus window is remembered and the parentless chooser is neither placed nor
+remembered. Not covered by this check: the chooser opened *with* a parent window (it is a
+modal dialog and left alone by the parent rule, which the smoke tests cover with stand-ins).
+
 ## Findings that change or confirm the spec
 
 - Confirms: the offset for a second window must be done by SnapTile; dialogs keep a different

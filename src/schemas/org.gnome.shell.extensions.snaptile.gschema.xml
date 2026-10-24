@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.snaptile" path="/org/gnome/shell/extensions/snaptile/">
+    <key name="places" type="s">
+      <default>'{}'</default>
+      <summary>Remembered places of application windows</summary>
+      <description>The size and position SnapTile remembers per application, as one JSON text. Unreadable text counts as nothing remembered.</description>
+    </key>
+  </schema>
+</schemalist>

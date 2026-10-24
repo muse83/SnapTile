@@ -4,6 +4,7 @@ import {EdgeTilingHint} from './edgeTilingHint.js';
 import {MonitorSizes} from './monitorSizes.js';
 import {TiledWindows} from './tiledWindows.js';
 import {WindowLook} from './windowLook.js';
+import {WindowMemory} from './windowMemory.js';
 
 export default class SnapTileExtension extends Extension {
     enable() {
@@ -16,9 +17,13 @@ export default class SnapTileExtension extends Extension {
         this._dragSnap.enable();
         this._windowLook = new WindowLook(this._monitorSizes);
         this._windowLook.enable();
+        this._windowMemory = new WindowMemory(this.getSettings(), this._tiledWindows);
+        this._windowMemory.enable();
     }
 
     disable() {
+        this._windowMemory?.destroy();
+        this._windowMemory = null;
         this._windowLook?.destroy();
         this._windowLook = null;
         this._dragSnap?.destroy();

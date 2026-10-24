@@ -9,6 +9,7 @@ export XDG_RUNTIME_DIR=/tmp/xdg-smoke
 rm -rf "$XDG_RUNTIME_DIR" "$EXT_DIR"
 mkdir -p -m 700 "$XDG_RUNTIME_DIR" "$EXT_DIR"
 cp -r "$REPO/src" "$EXT_DIR/snaptile@muse83"
+glib-compile-schemas "$EXT_DIR/snaptile@muse83/schemas" # gnome-extensions does this when it installs the extension
 cp -r "$REPO/tests/smoke/helper@snaptile.test" "$EXT_DIR/"
 
 # Bus and portal noise goes to a log file so the terminal shows only the checks.

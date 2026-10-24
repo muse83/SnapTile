@@ -192,6 +192,38 @@ for exp in $experiments; do
         ev 'global.get_window_actors().forEach(a => a.meta_window.delete(global.get_current_time())), 1' >/dev/null
         stop_client
         ;;
+    nautilusmemory)
+        echo "## 11. SnapTile's window memory with the real Nautilus: file-manager window remembered, parentless file chooser left alone"
+        arm null
+        ev "$ENABLE" >/dev/null
+        MEM='Main.extensionManager.lookup("'"$UUID"'").stateObj.getSettings()'
+        NAUT='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.get_wm_class() === "org.gnome.Nautilus").map(w => { const r = w.get_frame_rect(); return [w.get_title(), r.x, r.y, r.width, r.height]; }))'
+        PLACES="$MEM.get_string('places')"
+        nautilus --new-window /tmp >/dev/null 2>&1 &
+        sleep 5
+        echo "   file manager opens: $(ev "$NAUT")"
+        ev 'global.get_window_actors().map(a => a.meta_window).filter(w => w.get_wm_class() === "org.gnome.Nautilus").forEach(w => w.move_resize_frame(true, 150, 100, 700, 450)), 1' >/dev/null
+        sleep 1
+        ev 'global.get_window_actors().map(a => a.meta_window).filter(w => w.get_wm_class() === "org.gnome.Nautilus").forEach(w => w.delete(global.get_current_time())), 1' >/dev/null
+        sleep 2
+        echo "   stored after moving and closing it: $(ev "$PLACES")"
+        nautilus --new-window /tmp >/dev/null 2>&1 &
+        sleep 5
+        echo "   file manager opened again:  $(ev "$NAUT")"
+        ev 'global.get_window_actors().map(a => a.meta_window).filter(w => w.get_wm_class() === "org.gnome.Nautilus").forEach(w => w.delete(global.get_current_time())), 1' >/dev/null
+        sleep 2
+        echo "   -- now the parentless file chooser (another application asks for a file without a parent window)"
+        start_client CLIENT_APP_ID=org.snaptile.Research CLIENT_TITLE=main CLIENT_MODE=portal-orphan GTK_USE_PORTAL=1
+        sleep 9
+        echo "   chooser opens (GNOME's own place expected, not 150,100): $(ev "$NAUT")"
+        ev 'global.get_window_actors().map(a => a.meta_window).filter(w => w.get_wm_class() === "org.gnome.Nautilus").forEach(w => { w.move_resize_frame(true, 300, 200, 500, 400); }), 1' >/dev/null
+        sleep 1
+        ev 'global.get_window_actors().map(a => a.meta_window).filter(w => w.get_wm_class() === "org.gnome.Nautilus").forEach(w => w.delete(global.get_current_time())), 1' >/dev/null
+        sleep 2
+        echo "   stored after moving and closing the chooser: $(ev "$PLACES")"
+        stop_client
+        ev "$DISABLE" >/dev/null
+        ;;
     late)
         echo "## 7. Windows that restore themselves: asking for full screen later, and for maximised at start"
         for mode in fullscreen maximized; do

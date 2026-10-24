@@ -4,5 +4,6 @@
   "description": "Snap windows into 14 screen areas by dragging them to the screen edge.",
   "shell-version": ["50", "51"],
   "session-modes": ["user"],
+  "settings-schema": "org.gnome.shell.extensions.snaptile",
   "url": "https://github.com/muse83/SnapTile"
 }
