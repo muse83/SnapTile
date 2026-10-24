@@ -24,7 +24,9 @@ application (GTK 4.22 on 50, 4.24 on 51).
    dialogs and the file chooser portal (with the real Nautilus chooser) are the window type
    "modal dialog" and, when given a parent, transient for it. The one exception found: the
    Nautilus file chooser opened *without a parent window* shows up as a plain normal window of
-   the application `org.gnome.Nautilus`. See "Contradiction with the spec".
+   the application `org.gnome.Nautilus`, with the same type, class and size as a real file-manager
+   window. **It can still be told apart** by one property: file-manager windows carry a GTK window
+   object path (`/org/gnome/Nautilus/window/1`, `/2`, ...), the chooser has none (section 2).
 4. **GNOME's own placement of a second window** is a 50 px diagonal cascade from the centred
    slot when that slot is taken. It is not an offset from the open window.
 5. **A remembered Tile works through the drag's own snap path** when called at `map` (also with
@@ -145,19 +147,42 @@ GTK-backend row):
   full screen later was not checked (the log shows only the state at `map`, where it is not yet
   full screen), so whether it must also be watched after `map` is open.
 
-### Contradiction with the spec
+### Telling the parentless Nautilus chooser from a file-manager window
+
+Every property the shell holds for the two windows was compared (34 values each, GNOME 50 and
+51, `tests/research/placement/session.sh props`). Apart from values that differ for any two
+windows (title, last user action time, internal handles, accessibility path), exactly one
+differs in substance:
+
+| | file-manager window | parentless chooser |
+|---|---|---|
+| GTK window object path (`gtk-window-object-path`) | `/org/gnome/Nautilus/window/1`, `/window/2` for the next | none |
+
+GTK gives this path to windows that are application windows (`GtkApplicationWindow`); the
+chooser is a plain window of the same application. It is known in the same millisecond as the
+application id, before the window is placed or shown (checked at the application-id
+notification and at `map`, GNOME 50 and 51, with two file-manager windows open and then the
+chooser). So the memory can use "application `org.gnome.Nautilus`, no window path" as an
+exception for the chooser while ordinary Nautilus windows are remembered as any other.
+
+Limits: only the chooser was examined. Other Nautilus windows that are not application windows
+(for example a properties window, which normally has a parent) were not. The path is a GTK
+feature, so the rule is specific to GTK applications; a general version ("application id set but
+no window path") would also catch other windows of that kind, but I did not measure how many
+real main windows of other applications are plain windows without a path.
+
+### The earlier finding, before this comparison
 
 ADR 0007 and the spec say dialogs, "for example the file chooser a file manager opens", are
 left alone completely. Found: **the Nautilus file chooser is a modal dialog only when its
 requester gives a parent window.** Opened without a parent it is a normal window of the
 application `org.gnome.Nautilus` (title set by the requester): type 0, no parent, application id
 and class `org.gnome.Nautilus`, resizable and movable. A real Nautilus file-manager window
-was captured next to it: the same fields, even the same default size. Only the title differs
-(the folder name versus the requester's title). So by type, parent, class and size flags the two
-cannot be told apart. The consequence is inferred, not run: the memory would treat the chooser as
-a Nautilus window, store its size and place as Nautilus's, and place it where the file manager's
-last window was. **[U]** How often a requester gives no parent window is unknown. This needs a
-decision by the maintainer (accept, or add a rule).
+was captured next to it: the same fields, even the same default size. So by type, parent, class
+and size flags the two cannot be told apart; the GTK window path above can. Without such a rule
+the memory would treat the chooser as a Nautilus window, store its size and place as
+Nautilus's, and place it where the file manager's last window was. **[U]** that consequence is
+inferred, not run. How often a requester gives no parent window is unknown.
 
 On GNOME 51 the GTK-backend chooser could not be tested: the GTK portal process aborts in the
 container (`image-missing.svg: Unrecognized image file format`, no SVG loader in that image).
@@ -246,7 +271,9 @@ ticket), differing scale factors.
   class and no application id; SnapTile can place a window without hiding it.
 - Refines: "as early as Mutter allows" is the `map` signal; earlier calls lose the position.
 - Contradicts: the Nautilus file chooser without a parent window is not recognisable as a
-  dialog (section 2). Open decision for the maintainer.
+  dialog by type or parent (section 2). It is recognisable by its missing GTK window path, so
+  a narrow exception for exactly this window is possible and ordinary Nautilus windows can
+  stay remembered. Decision for the maintainer: use that exception.
 - Contradicts (in part): reusing the snap path unchanged would invent a size before tiling
   from the application's default; it must accept the remembered size or none (section 4).
 - Refines: "SnapTile's place wins against an application's own restoring" holds for a window that

@@ -258,3 +258,34 @@ Bail out! Gtk:ERROR:../gtk/gtk/gtkiconhelper.c:495:ensure_surface_for_gicon: ass
   w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
 
 Shell log (errors only):
+
+### Section 10: is the GTK window path there in time (both versions)
+## 10. Is the window's GTK object path there in time (at creation, at map)? Nautilus windows and the parentless chooser
+-- two file-manager windows
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True windowpath=None fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +   1ms notify::gtk-application-id title='Loading…' app='org.gnome.Nautilus' class='org.gnome.Nautilus' windowpath='/org/gnome/Nautilus/window/1' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
+  w1 +  46ms map            title='Loading…' app='org.gnome.Nautilus' class='org.gnome.Nautilus' type=0 parent=None/None move=True resize=True windowpath='/org/gnome/Nautilus/window/1' fs=False max=False frame=[195, 101, 890, 550] buffer=[170, 76, 940, 600] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True windowpath=None fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +   0ms notify::gtk-application-id title='Loading…' app='org.gnome.Nautilus' class='org.gnome.Nautilus' windowpath='/org/gnome/Nautilus/window/2' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
+  w2 +  18ms map            title='usr' app='org.gnome.Nautilus' class='org.gnome.Nautilus' type=0 parent=None/None move=True resize=True windowpath='/org/gnome/Nautilus/window/2' fs=False max=False frame=[245, 151, 890, 550] buffer=[220, 126, 940, 600] actor[mapped=True visible=True opacity=0]
+-- plus the parentless chooser opened by another application (second dump: only new events)
+  w1 +   1ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True windowpath=None fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +   1ms notify::gtk-application-id title='main' app='org.snaptile.Research' class='org.snaptile.Research' windowpath='/org/snaptile/Research/window/1' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True windowpath='/org/snaptile/Research/window/1' fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True windowpath=None fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +   0ms notify::gtk-application-id title='portal-dialog' app='org.gnome.Nautilus' class='org.gnome.Nautilus' windowpath=None frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
+  w2 +  17ms map            title='portal-dialog' app='org.gnome.Nautilus' class='org.gnome.Nautilus' type=0 parent=None/None move=True resize=True windowpath=None fs=False max=False frame=[245, 101, 890, 550] buffer=[220, 76, 940, 600] actor[mapped=True visible=True opacity=0]
+
+Shell log (errors only):
+
+## 9. Everything the shell knows: real Nautilus window versus the parentless file chooser
+  34 values for the file-manager window, 34 for the chooser
+  DIFFERS prop:a11y-object-path: window='/org/gnome/Nautilus/a11y/cf75eaac_1257_4190_96e5_8f8231addfbd' chooser='/org/gnome/Nautilus/a11y/1bd23bbb_44fe_4cae_989c_4eb849283e50'
+  DIFFERS prop:gtk-window-object-path: window='/org/gnome/Nautilus/window/1' chooser=None
+  DIFFERS prop:main-monitor: window='[object instance wrapper GIName:Meta.LogicalMonitor jsobj@0x1b8873aac150 native@0x564c37d16b70]' chooser='[object instance wrapper GIName:Meta.LogicalMonitor jsobj@0x3c6675d7fa38 native@0x564c37d16b70]'
+  DIFFERS prop:surface: window='[object instance wrapper GIName:Meta.WaylandSurface jsobj@0x1b8873aacc40 native@0x564c3adb2780]' chooser='[object instance wrapper GIName:Meta.WaylandSurface jsobj@0x3c6675d7fd58 native@0x564c3883f630]'
+  DIFFERS prop:title: window='tmp' chooser='portal-dialog'
+  DIFFERS prop:user-time: window=6920872 chooser=6931969
+  28 values are equal
+
+Shell log (errors only):

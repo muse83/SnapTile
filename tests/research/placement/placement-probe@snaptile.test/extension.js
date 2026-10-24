@@ -54,6 +54,33 @@ export default class PlacementProbe extends Extension {
         return text;
     }
 
+    /** Everything the shell can tell about the window whose title starts with `prefix`: all properties and the plain getters. */
+    describe(prefix) {
+        const w = global.get_window_actors().map(a => a.meta_window).find(x => (x.get_title() ?? '').startsWith(prefix));
+        if (!w)
+            return null;
+        const out = {};
+        for (const spec of w.constructor.list_properties()) {
+            try {
+                const v = w[spec.name.replace(/-/g, '_')];
+                out[`prop:${spec.name}`] = (v !== null && typeof v === 'object') ? `${v}` : v;
+            } catch (e) {
+                out[`prop:${spec.name}`] = `error ${e}`;
+            }
+        }
+        for (const name of Object.getOwnPropertyNames(Object.getPrototypeOf(w))) {
+            if (!/^(get_|is_|has_|allows_|can_|showing_|skip|appears)/.test(name))
+                continue;
+            if (['get_compositor_private', 'get_display', 'get_workspace', 'get_stable_sequence', 'get_id', 'get_user_time', 'get_pid'].includes(name))
+                continue;
+            try {
+                const v = w[name]();
+                out[`fn:${name}`] = (v !== null && typeof v === 'object') ? `${v}` : v;
+            } catch (e) { /* needs arguments */ }
+        }
+        return out;
+    }
+
     /** Writes the recorded lines to a file and forgets them. */
     dump(path) {
         GLib.file_set_contents(path, this.takeLog() + '\n');
@@ -80,6 +107,7 @@ export default class PlacementProbe extends Extension {
             parentCls: w.get_transient_for()?.get_wm_class() ?? null,
             move: w.allows_move(),
             resize: w.allows_resize(),
+            gtkWindowPath: w.gtk_window_object_path ?? null,
             fullscreen: w.is_fullscreen(),
             maximized: w.is_maximized(),
             frame: rectOf(w.get_frame_rect()),

@@ -161,6 +161,37 @@ for exp in $experiments; do
         sleep 1.5
         ev 'probe.forget()' >/dev/null
         ;;
+    props)
+        echo "## 9. Everything the shell knows: real Nautilus window versus the parentless file chooser"
+        arm null
+        nautilus --new-window /tmp >/tmp/research-nautilus-window.log 2>&1 &
+        sleep 6
+        ev 'JSON.stringify(probe.describe("tmp"))' >/tmp/research-props-window.json
+        ev 'global.get_window_actors().forEach(a => a.meta_window.delete(global.get_current_time())), 1' >/dev/null
+        sleep 2
+        ev 'probe.forget()' >/dev/null
+        start_client CLIENT_APP_ID=org.snaptile.Research CLIENT_TITLE=main CLIENT_MODE=portal-orphan GTK_USE_PORTAL=1
+        sleep 9
+        ev 'JSON.stringify(probe.describe("portal-dialog"))' >/tmp/research-props-chooser.json
+        stop_client
+        python3 "$HERE/propsdiff.py" /tmp/research-props-window.json /tmp/research-props-chooser.json
+        ;;
+    nautpath)
+        echo "## 10. Is the window's GTK object path there in time (at creation, at map)? Nautilus windows and the parentless chooser"
+        arm null
+        nautilus --new-window /tmp >/tmp/research-nautilus-window.log 2>&1 &
+        sleep 4
+        nautilus --new-window /usr >/tmp/research-nautilus-window2.log 2>&1 &
+        sleep 5
+        echo "-- two file-manager windows"
+        dump 'window-created,notify::gtk-application-id,map'
+        start_client CLIENT_APP_ID=org.snaptile.Research CLIENT_TITLE=main CLIENT_MODE=portal-orphan GTK_USE_PORTAL=1
+        sleep 9
+        echo "-- plus the parentless chooser opened by another application (second dump: only new events)"
+        dump 'window-created,notify::gtk-application-id,map'
+        ev 'global.get_window_actors().forEach(a => a.meta_window.delete(global.get_current_time())), 1' >/dev/null
+        stop_client
+        ;;
     late)
         echo "## 7. Windows that restore themselves: asking for full screen later, and for maximised at start"
         for mode in fullscreen maximized; do

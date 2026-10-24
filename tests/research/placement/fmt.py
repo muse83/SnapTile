@@ -14,7 +14,7 @@ for line in open(sys.argv[1]):
     n = seen.setdefault(e['id'], len(seen) + 1)
     head = f"  w{n} +{e['t']:>4}ms {e['ev']:<14}"
     if e['ev'].startswith('notify::') or e['ev'] in ('position-changed', 'size-changed'):
-        print(f"{head} title={e['title']!r} app={e['appId']!r} class={e['cls']!r} frame={e['frame']} buffer={e['buffer']} mapped={e['actor'] and e['actor']['mapped']}")
+        print(f"{head} title={e['title']!r} app={e['appId']!r} class={e['cls']!r} windowpath={e['gtkWindowPath']!r} frame={e['frame']} buffer={e['buffer']} mapped={e['actor'] and e['actor']['mapped']}")
     elif e['ev'] == 'frame':
         print(f"{head} frame={e['frame']} buffer={e['buffer']} actor={e['actor']} opacity={e['opacity']}")
     elif e['ev'] == 'placed':
@@ -26,4 +26,4 @@ for line in open(sys.argv[1]):
         actor = 'none' if a is None else f"mapped={a['mapped']} visible={a['visible']} opacity={a['opacity']}"
         print(f"{head} title={e['title']!r} app={e['appId']!r} class={e['cls']!r} type={e['type']} "
               f"parent={e['parent']!r}/{e['parentCls']!r} move={e['move']} resize={e['resize']} "
-              f"fs={e['fullscreen']} max={e['maximized']} frame={e['frame']} buffer={e['buffer']} actor[{actor}]")
+              f"windowpath={e['gtkWindowPath']!r} fs={e['fullscreen']} max={e['maximized']} frame={e['frame']} buffer={e['buffer']} actor[{actor}]")
