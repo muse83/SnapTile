@@ -11,8 +11,12 @@ import {appKeyOf, parsePlaces, placeFor, rememberFree, rememberOnClose, serialis
  * decisions live in rememberedPlaces.js; this class connects them to the windows and to the
  * settings. It creates only signal connections, which destroy() removes; there is no timer.
  *
+ * The switch "enabled" in the settings turns remembering and placing off without touching what
+ * is stored. The preferences window clears the memory by resetting "places"; the copy kept
+ * here follows every change of the stored text, so a clear reaches windows that are open now.
+ *
  * Not yet here: tiled and maximised windows, a second window of an application (GNOME
- * places it as usual), the switch and the clear button, several monitors that change.
+ * places it as usual), several monitors that change.
  */
 export class WindowMemory {
     /** @param settings the extension's Gio.Settings, @param tiledWindows the shared TiledWindows */
@@ -38,6 +42,8 @@ export class WindowMemory {
             this._watch(actor.meta_window, false);
 
         this._signals.push(
+            [this._settings, this._settings.connect('changed::places',
+                () => this._followStoredPlaces())],
             [global.display, global.display.connect('window-created',
                 (display, window) => this._watch(window, true))],
             [global.display, global.display.connect('grab-op-end',
@@ -46,10 +52,11 @@ export class WindowMemory {
                 (manager, actor) => this._place(actor.meta_window))]);
     }
 
-    /** Call from the extension's disable(). Saves every open window first. */
+    /** Call from the extension's disable(). Saves every open window first (if switched on). */
     destroy() {
         try {
-            this._saveOpenWindows();
+            if (this._isMemoryOn())
+                this._saveOpenWindows();
             Gio.Settings.sync(); // the session may end right after disable, so write it out now
         } finally {
             for (const [object, id] of this._signals)
@@ -62,6 +69,26 @@ export class WindowMemory {
             }
             this._windows.clear();
         }
+    }
+
+    /** The switch of the preferences window: whether windows are remembered and placed. */
+    _isMemoryOn() {
+        return this._settings.get_boolean('enabled');
+    }
+
+    /**
+     * The stored text changed. Our own writes arrive here too and are told apart by being the
+     * text we hold; anything else (the clear button, a hand edit) replaces what we hold.
+     */
+    _followStoredPlaces() {
+        const text = this._settings.get_string('places');
+        if (text === serialisePlaces(this._places))
+            return;
+        this._places = parsePlaces(text);
+        // What the open windows saved is gone or replaced, so none of them has a later save
+        // that its siblings must respect when they close.
+        for (const entry of this._windows.values())
+            entry.savedAt = 0;
     }
 
     _watch(window, arriving) {
@@ -93,7 +120,7 @@ export class WindowMemory {
      */
     _saveAfterGrab(window) {
         const entry = this._windows.get(window);
-        const key = entry && this._savableKey(window);
+        const key = entry && this._isMemoryOn() && this._savableKey(window);
         if (!key)
             return;
         entry.savedAt = ++this._saves;
@@ -103,7 +130,7 @@ export class WindowMemory {
     /** A window closes: its place counts unless another window of the application saved later. */
     _saveOnClose(window) {
         const entry = this._windows.get(window);
-        const key = this._savableKey(window);
+        const key = this._isMemoryOn() && this._savableKey(window);
         if (!key)
             return;
         const others = [...this._windows]
@@ -146,6 +173,8 @@ export class WindowMemory {
         if (!entry?.arriving)
             return; // already open when the extension was enabled, or shown again after hiding
         entry.arriving = false;
+        if (!this._isMemoryOn())
+            return; // a window that opens while switched off is "already open" once it is on again
 
         const key = appKeyOf(factsOf(window));
         if (key === null || this._hasOtherOpenWindow(window, key))

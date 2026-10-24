@@ -674,6 +674,74 @@ check "disabling saves the open windows, the one used last wins (second window)"
 ev "$ENABLE" >/dev/null
 stop_apps
 
+echo "  Window memory: the switch and the clear button in the Extensions manager"
+# The real preferences window is opened in the test shell and driven like a user would: a click
+# into it, then keys. The first control is the switch (Space), the next one the clear button
+# (Tab, then Space). Whatever the keys did is read back from the settings.
+check "the switch is on in a fresh install" true "$MEM.get_boolean('enabled')"
+reset_places
+gnome-extensions prefs "$UUID" >/dev/null 2>&1
+sleep 5
+check "the preferences window opens" 1 "$(titled SnapTile).length"
+PREFS_FRAME=$(ev "JSON.stringify($(titled SnapTile).map(w => { const r = w.get_frame_rect(); return [r.x + r.width / 2, r.y + r.height / 2]; })[0])")
+move $(echo "$PREFS_FRAME" | tr -d '[]"' | tr ',' ' ' | awk '{print int($1), int($2)}')
+button PRESSED; button RELEASED
+press_key() { # press_key <keysym>: to the focused window, like the keyboard would
+    for state in PRESSED RELEASED; do
+        ev "globalThis.__kbd.notify_keyval(imports.gi.GLib.get_monotonic_time(), $1, imports.gi.Clutter.KeyState.$state), 1" >/dev/null
+        sleep 0.2
+    done
+    sleep 0.5
+}
+prefs_key() { # prefs_key <keysym>: back to the preferences window first (opening a window took the focus)
+    ev "$(titled SnapTile)[0].activate(global.get_current_time()), 1" >/dev/null
+    sleep 0.5
+    press_key "$1"
+}
+SPACE=0x20
+TAB=0xff09
+
+set_places "$MEM_A"
+prefs_key $SPACE
+check "the switch turns off" false "$MEM.get_boolean('enabled')"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "switched off: a window is not placed" '"[440,226,400,300]"' "$(frame_of mem-a)"
+place_window mem-a 10 40 300 300
+reload_extension
+check "switched off: disabling the extension saves nothing" '"org.snaptile.MemA=120,90,520,360"' "$PLACES"
+close_window mem-a
+check "switched off: closing a window changes nothing stored" '"org.snaptile.MemA=120,90,520,360"' "$PLACES"
+stop_apps
+
+prefs_key $SPACE
+check "the switch turns on again" true "$MEM.get_boolean('enabled')"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "switched on again: the earlier place is back" '"[120,90,520,360]"' "$(frame_of mem-a)"
+place_window mem-a 200 120 500 350
+# Another application's place is stored behind the extension's back, which it must follow.
+store_places '{"org.snaptile.MemB": {frame: {x: 5, y: 40, width: 300, height: 200}}, "org.snaptile.MemA": {frame: {x: 120, y: 90, width: 520, height: 360}}}'
+prefs_key $TAB; press_key $SPACE
+check "the clear button empties the stored data" '""' "$PLACES"
+close_window mem-a
+check "closing the window after the clear brings back only its own place, not the cleared data" '"org.snaptile.MemA=200,120,500,350"' "$PLACES"
+stop_apps
+
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+place_window mem-a 220 140 450 330
+prefs_key $SPACE # the clear button still has the focus
+check "the clear button empties the stored data again" '""' "$PLACES"
+ev "$MEM.set_boolean('enabled', false), 1" >/dev/null
+close_window mem-a
+check "a window that was open during the clear stores nothing while switched off" '""' "$PLACES"
+ev "$MEM.set_boolean('enabled', true), 1" >/dev/null
+stop_apps
+# kill, not delete: closing asks the window first, and Mutter's warning about that ping names
+# the window ("SnapTile"), which the shell log check below would take for an error of ours.
+ev "$(titled SnapTile).forEach(w => w.kill()), 1" >/dev/null
+sleep 1
+check "the preferences window closes" 0 "$(titled SnapTile).length"
+reset_places
+
 echo "  Window memory: nothing is left behind when the extension is disabled"
 # Every signal connection made from windowMemory.js is recorded (and forgotten when it is
 # disconnected). Connections on windows that are gone do not count.

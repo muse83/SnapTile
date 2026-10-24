@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.snaptile" path="/org/gnome/shell/extensions/snaptile/">
+    <key name="enabled" type="b">
+      <default>true</default>
+      <summary>Remember and place windows</summary>
+      <description>Whether SnapTile remembers where application windows were and puts new windows there. Off: nothing is remembered or placed, and what is stored stays until it is cleared.</description>
+    </key>
     <key name="places" type="s">
       <default>'{}'</default>
       <summary>Remembered places of application windows</summary>

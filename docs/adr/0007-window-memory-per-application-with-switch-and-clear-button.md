@@ -65,3 +65,14 @@ Status: accepted (2026-10-23, maintainer decision in a grilling session). Spec: 
 - Dialogs behave differently for memory and for the Window look; both are intended.
 - A visible jump when a window opens is possible and accepted. The research ticket measures it.
 - Tiled-window state must be asked from one place by both drag-to-snap and the memory.
+- How the preferences window reaches the running extension (ticket "Switch and clear button",
+  spec: issue #8): the preferences window runs in its own process and only changes the shared
+  settings. The switch is read each time something would be saved or placed, so it takes
+  effect at once. The clear button resets the stored places; the extension follows every
+  change of the stored text that is not its own write, replaces its in-memory copy and forgets
+  which open window saved last, so a window open during the clear stores its place anew when
+  it closes (while the switch is on). The clear button asks no confirmation: what it removes
+  is only window places, which rebuild by use.
+- Known limit of the clear button: the extension learns of the clear through a change signal,
+  not in the same instant. A window that closes in that fraction of a second would write the
+  old places back over the cleared text. Not guarded; the user can press the button again.
