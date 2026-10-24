@@ -157,6 +157,10 @@ PREVIEW_DRAWN="JSON.stringify($PREVIEW_BOXES.map(c => [Math.round(c.x), Math.rou
 PREVIEW="JSON.stringify($PREVIEW_BOXES.map(c => [Math.round(c.x) - $MARGIN, Math.round(c.y) - $MARGIN, Math.round(c.width) + 2 * $MARGIN, Math.round(c.height) + 2 * $MARGIN]))"
 SIZE='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.title === "probe-window").map(w => { const r = w.get_frame_rect(); return [r.width, r.height]; })[0])'
 
+# What the shared TiledWindows says about the probe window: "<Tile> <width>x<height>" (size from
+# before tiling), or null if it is not tiled.
+TILED='(() => { const w = global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window"); const t = Main.extensionManager.lookup("'"$UUID"'").stateObj._tiledWindows.get(w.get_id()); return t && `${t.tile} ${t.sizeBefore.width}x${t.sizeBefore.height}`; })()'
+
 start_probe() { # start_probe [WIDTHxHEIGHT]: a fresh probe window, with a minimum size if given
     kill $WINDOW_PID 2>/dev/null
     sleep 1
@@ -247,15 +251,21 @@ snap_merged "release on the right two-thirds, merged from the right" 1200 640 42
 echo "Size before tiling:"
 start_probe
 snap "left half" 3 360 0,32,640,688
+check "the shared record names the Tile and the size from before" '"left 400x300"' "$TILED"
+snap "bottom-right quarter" 1276 716 640,376,640,344
+check "tiled again: the record names the new Tile" '"bottom-right 400x300"' "$TILED"
+snap "left half" 3 360 0,32,640,688
 grab_window
 drag_to 640 300
 check "dragging a tiled window out restores its earlier size" '"[400,300]"' "$SIZE"
+check "the shared record no longer has the window" 'null' "$TILED"
 check "no preview in the middle of the screen" '"[]"' "$PREVIEW"
 button RELEASED
 sleep 1
 snap "left half again" 3 360 0,32,640,688
 ev "$DISABLE" >/dev/null
 ev "$ENABLE" >/dev/null
+check "after disabling and enabling, nothing is recorded" 'null' "$TILED"
 grab_window
 drag_to 640 300
 check "a window with no remembered size keeps its own" '"[640,688]"' "$SIZE"
@@ -282,6 +292,7 @@ sleep 0.6
 button RELEASED
 sleep 1
 check "Escape puts a tiled window back into its Tile" '"[0,32,640,688]"' "$RECT"
+check "the shared record still names the Tile" '"left 400x300"' "$TILED"
 grab_window
 drag_to 640 300
 check "it still remembers its earlier size" '"[400,300]"' "$SIZE"

@@ -4,7 +4,6 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {anchoredOrigin, decideTile} from './tileDecision.js';
-import {SizeMemory} from './sizeMemory.js';
 import {TilePreview} from './tilePreview.js';
 
 // How often the pointer is read during a drag. The shell offers no pointer signal while
@@ -13,15 +12,16 @@ const POLL_INTERVAL_MS = 30;
 
 /**
  * Drag a window to an Edge zone, see the Tile preview, release to snap. Dragging a tiled
- * window out gives it back the size it had before. Everything it creates (signals, timer,
- * preview) is removed by destroy().
+ * window out gives it back the size it had before. It records every tiled window (Tile and
+ * size from before) in the TiledWindows it is given, which the extension owns and clears.
+ * Everything it creates itself (signals, timer, preview) is removed by destroy().
  */
 export class DragSnap {
-    constructor(monitorSizes) {
-        this._memory = new SizeMemory();
+    constructor(monitorSizes, tiledWindows) {
+        this._tiledWindows = tiledWindows;
         this._monitorSizes = monitorSizes;
         this._preview = new TilePreview();
-        this._tiled = new Map(); // window id -> {window, unmanagedId, sizeChangedId}
+        this._tracked = new Map(); // window id -> {window, unmanagedId, sizeChangedId}
         this._drag = null; // {window, state, sourceId} while a move is running
         this._signals = [];
     }
@@ -43,11 +43,11 @@ export class DragSnap {
 
         this._stopPolling();
         this._preview.destroy();
-        for (const entry of this._tiled.values()) {
+        for (const entry of this._tracked.values()) {
             this._stopAnchoring(entry);
             entry.window.disconnect(entry.unmanagedId);
         }
-        this._tiled.clear();
+        this._tracked.clear();
     }
 
     _onGrabBegin(window, op) {
@@ -61,7 +61,7 @@ export class DragSnap {
         if (!isTileable(window))
             return;
 
-        this._drag = {window, state: null, sourceId: 0, tiledFrame: null};
+        this._drag = {window, state: null, sourceId: 0, tiled: null};
         this._restoreSize(window);
         this._drag.sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, POLL_INTERVAL_MS, () => {
             this._update();
@@ -78,14 +78,14 @@ export class DragSnap {
         const [, , modifiers] = global.get_pointer();
         const cancelled = (modifiers & Clutter.ModifierType.BUTTON1_MASK) !== 0;
         const result = cancelled ? null : this._decide();
-        const {tiledFrame} = this._drag;
+        const {tiled} = this._drag;
         this._stopPolling();
         this._preview.hide();
 
         if (result)
             this._snap(window, result);
-        else if (cancelled && tiledFrame)
-            this._snap(window, {rect: tiledFrame, workArea: this._workAreaOf(window)});
+        else if (cancelled && tiled)
+            this._snap(window, {rect: tiled.frame, workArea: this._workAreaOf(window), tile: tiled.tile});
     }
 
     _update() {
@@ -109,9 +109,9 @@ export class DragSnap {
         return result;
     }
 
-    _snap(window, {rect, workArea}) {
+    _snap(window, {rect, workArea, tile}) {
         const frame = window.get_frame_rect();
-        this._memory.remember(window.get_id(), {width: frame.width, height: frame.height});
+        this._tiledWindows.tile(window.get_id(), tile, {width: frame.width, height: frame.height});
         const entry = this._track(window);
 
         if (window.is_maximized())
@@ -150,6 +150,7 @@ export class DragSnap {
 
     /** Gives a tiled window its earlier size back when it is dragged out of the Tile. */
     _restoreSize(window) {
+        const tile = this._tiledWindows.get(window.get_id())?.tile ?? null;
         const size = this._untrack(window);
         if (!size)
             return;
@@ -157,30 +158,30 @@ export class DragSnap {
         // Keep the pointer at the same relative place along the window, so it stays in hand.
         const [pointerX] = global.get_pointer();
         const frame = window.get_frame_rect();
-        this._drag.tiledFrame = plainRect(frame);
+        this._drag.tiled = {frame: plainRect(frame), tile};
         const x = Math.round(pointerX - size.width * (pointerX - frame.x) / frame.width);
         window.move_resize_frame(true, x, frame.y, size.width, size.height);
     }
 
     _track(window) {
         const id = window.get_id();
-        if (!this._tiled.has(id)) {
+        if (!this._tracked.has(id)) {
             const unmanagedId = window.connect('unmanaged', () => this._untrack(window));
-            this._tiled.set(id, {window, unmanagedId, sizeChangedId: 0});
+            this._tracked.set(id, {window, unmanagedId, sizeChangedId: 0});
         }
-        return this._tiled.get(id);
+        return this._tracked.get(id);
     }
 
     /** Stops tracking a window and returns the size it had before tiling, if any. */
     _untrack(window) {
         const id = window.get_id();
-        const entry = this._tiled.get(id);
+        const entry = this._tracked.get(id);
         if (entry) {
             this._stopAnchoring(entry);
             window.disconnect(entry.unmanagedId);
-            this._tiled.delete(id);
+            this._tracked.delete(id);
         }
-        return this._memory.restore(id);
+        return this._tiledWindows.release(id);
     }
 
     _stopPolling() {

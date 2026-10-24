@@ -1,0 +1,76 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {TiledWindows} from '../../src/tiledWindows.js';
+
+const SIZE = {width: 640, height: 480};
+
+test('tells the Tile a window sits in and its size from before tiling', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('w1', 'left', SIZE);
+    assert.deepEqual(tiled.get('w1'), {tile: 'left', sizeBefore: SIZE});
+});
+
+test('a window SnapTile never tiled is not in any Tile', () => {
+    const tiled = new TiledWindows();
+    assert.equal(tiled.get('w9'), null);
+    assert.equal(tiled.release('w9'), null);
+});
+
+test('tiling again moves the window to the new Tile but keeps the first size', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('w1', 'left', SIZE);
+    tiled.tile('w1', 'top-right', {width: 500, height: 500});
+    assert.deepEqual(tiled.get('w1'), {tile: 'top-right', sizeBefore: SIZE});
+});
+
+test('releasing hands back the size from before and ends the tiling', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('w1', 'left', SIZE);
+    assert.deepEqual(tiled.release('w1'), SIZE);
+    assert.equal(tiled.get('w1'), null);
+    assert.equal(tiled.release('w1'), null);
+});
+
+test('the next tiling after a release remembers a new size', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('w1', 'left', SIZE);
+    tiled.release('w1');
+    tiled.tile('w1', 'full', {width: 300, height: 200});
+    assert.deepEqual(tiled.get('w1'), {tile: 'full', sizeBefore: {width: 300, height: 200}});
+});
+
+test('a window that never had a free size gets none invented', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('w1', 'left', null);
+    tiled.tile('w1', 'right', SIZE); // already tiled: must not pick up the tiled size
+    assert.deepEqual(tiled.get('w1'), {tile: 'right', sizeBefore: null});
+    assert.equal(tiled.release('w1'), null);
+});
+
+test('windows are independent', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('a', 'left', SIZE);
+    tiled.tile('b', 'right', {width: 10, height: 10});
+    tiled.release('a');
+    assert.equal(tiled.get('a'), null);
+    assert.deepEqual(tiled.get('b'), {tile: 'right', sizeBefore: {width: 10, height: 10}});
+});
+
+test('clearing forgets every window', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('a', 'left', SIZE);
+    tiled.tile('b', 'right', SIZE);
+    tiled.clear();
+    assert.equal(tiled.get('a'), null);
+    assert.equal(tiled.get('b'), null);
+});
+
+test('stored and returned sizes are copies', () => {
+    const tiled = new TiledWindows();
+    const size = {width: 1, height: 2};
+    tiled.tile('w', 'left', size);
+    size.width = 99;
+    tiled.get('w').sizeBefore.height = 99;
+    assert.deepEqual(tiled.get('w').sizeBefore, {width: 1, height: 2});
+});
