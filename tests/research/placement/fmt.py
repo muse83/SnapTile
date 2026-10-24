@@ -26,4 +26,4 @@ for line in open(sys.argv[1]):
         actor = 'none' if a is None else f"mapped={a['mapped']} visible={a['visible']} opacity={a['opacity']}"
         print(f"{head} title={e['title']!r} app={e['appId']!r} class={e['cls']!r} type={e['type']} "
               f"parent={e['parent']!r}/{e['parentCls']!r} move={e['move']} resize={e['resize']} "
-              f"fs={e['fullscreen']} frame={e['frame']} buffer={e['buffer']} actor[{actor}]")
+              f"fs={e['fullscreen']} max={e['maximized']} frame={e['frame']} buffer={e['buffer']} actor[{actor}]")

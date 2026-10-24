@@ -3,7 +3,8 @@
 Date: 2026-10-24. Issue: research ticket for the window memory (spec: issue #8, ADR 0007).
 Method: everything here was run in the headless GNOME Shell of the dev stack, GNOME Shell 50.4
 (`gnome50`) and 51.1 (`gnome51`). Nothing is taken from source code. The raw terminal output is
-in `docs/research/window-placement-output/gnome50.txt` and `gnome51.txt`.
+in `docs/research/window-placement-output/gnome50.txt` and `gnome51.txt` (one full run each,
+plus the two-monitor run and the GTK-backend chooser run).
 
 Reproduce: `tests/research/placement/run.sh [gnome50|gnome51] [hooks early place noanim snap dialogs second]`.
 A research-only extension (`tests/research/placement/placement-probe@snaptile.test`, never
@@ -28,14 +29,18 @@ application (GTK 4.22 on 50, 4.24 on 51).
    slot when that slot is taken. It is not an offset from the open window.
 5. **A remembered Tile works through the drag's own snap path** when called at `map` (also with
    a window whose minimum size is larger than the Tile). One detail needs changing, see below.
-6. GNOME 50 and 51 behave the same in every measurement that ran on both. Differences: 51 emits
-   one additional `notify::wm-class` after the window is shown, and the GTK-backend file
-   chooser could only be run on 50 (it aborts in the 51 container).
+6. A window that asks to be **maximised at start** is already maximised at `map` and ignores a
+   plain placement. It only ends at the remembered place if it is un-maximised first *and* the
+   place is applied after the un-maximise has been answered (section 5).
+7. A window that goes **full screen later** looks normal at `map`; placing it did not interfere.
+8. Placing onto a **second monitor** works the same way (section 5).
+9. GNOME 50 and 51 behave the same in every measurement that ran on both. The only difference:
+   the GTK-backend file chooser could only be run on 50 (it aborts in the 51 container).
 
 ## 1. The earliest moment a new window can be placed
 
 What happens to one new window, in order (`ms` since the shell created the window object;
-GNOME 50, no placement; GNOME 51 is identical apart from the extra wm-class notification).
+GNOME 50, no placement; GNOME 51 is identical).
 Times are from a typical run and vary by 1-3 ms between runs; exact values are in the raw
 output files:
 
@@ -121,6 +126,7 @@ GTK-backend row):
 | built-in GTK file chooser dialog | 4 | main window | class `python3`, no id |
 | file chooser portal, **Nautilus** (GNOME's choice), parent given | 4 | main window **of the other application** | class `org.gnome.Nautilus`, no id |
 | file chooser portal, Nautilus, **no parent** | **0** | **none** | id and class `org.gnome.Nautilus` |
+| a real Nautilus file-manager window (for comparison) | **0** | none | id and class `org.gnome.Nautilus`, same default size 890x550 as the chooser |
 | file chooser portal, GTK backend, with and without parent (GNOME 50 only) | 4 | main window / none | class `xdg-desktop-portal-gtk` |
 | main window that cannot be resized | 0 | none | `allows_resize()` is false |
 
@@ -145,12 +151,13 @@ ADR 0007 and the spec say dialogs, "for example the file chooser a file manager 
 left alone completely. Found: **the Nautilus file chooser is a modal dialog only when its
 requester gives a parent window.** Opened without a parent it is a normal window of the
 application `org.gnome.Nautilus` (title set by the requester): type 0, no parent, application id
-and class `org.gnome.Nautilus`, resizable and movable. I did not capture a real Nautilus
-file-manager window to compare, so "indistinguishable" is inferred from those fields, and so is
-the consequence: the memory would treat it as a Nautilus window, store its size and place as
-Nautilus's, and place it where the file manager's last window was. **[U]** both untested. How
-often a requester gives no parent window is unknown. This needs a decision by the maintainer
-(accept, or add a rule).
+and class `org.gnome.Nautilus`, resizable and movable. A real Nautilus file-manager window
+was captured next to it: the same fields, even the same default size. Only the title differs
+(the folder name versus the requester's title). So by type, parent, class and size flags the two
+cannot be told apart. The consequence is inferred, not run: the memory would treat the chooser as
+a Nautilus window, store its size and place as Nautilus's, and place it where the file manager's
+last window was. **[U]** How often a requester gives no parent window is unknown. This needs a
+decision by the maintainer (accept, or add a rule).
 
 On GNOME 51 the GTK-backend chooser could not be tested: the GTK portal process aborts in the
 container (`image-missing.svg: Unrecognized image file format`, no SVG loader in that image).
@@ -198,6 +205,41 @@ with the Tile `left` and the rectangle `[0,32,640,688]`:
   too early), which invents a free size. The snap path needs to take the remembered earlier
   size (or "none") from the caller. This does not affect the free-window ticket.
 
+## 5. Windows that restore themselves, and several monitors
+
+Both from the full runs on GNOME 50 and 51 (identical on both). Target for all placements:
+`[200,150,700,450]`, applied at `map`.
+
+**Full screen later** (the client asks for full screen 3 s after it opened): at `map` the window
+reports "not full screen"; 5 s after start it is full screen (`[0,0,1280,720]`). Placing it
+at `map` (plain, with un-maximise, or through the snap path) changed nothing: full screen won in
+every case. So the check "is it full screen" has to be repeated after `map` (for example on the
+shell's full-screen change), not done once.
+
+**Maximised at start** (the client asks to be maximised before it is shown): at `map` it is
+already maximised (`max=True`, frame `[0,32,1280,688]`, not resizable while maximised). State
+5 s after start:
+
+| Placement at `map` | End state |
+|---|---|
+| none | maximised, `[0,32,1280,688]` |
+| `move_resize_frame` | **still maximised**, the call is ignored |
+| un-maximise, then `move_resize_frame` at once | un-maximised, but `[0,0,400,300]` (the application's default size at the top left): the place is lost |
+| the drag's snap path (it un-maximises first, then places) | un-maximised, `[0,0,400,300]`: the Tile is lost too |
+| un-maximise, wait for the first `size-changed`, then `move_resize_frame` | `[200,150,700,450]`, as wanted |
+
+So "SnapTile's place wins against an application's own restoring" (spec) is possible, but not by
+one call: un-maximise, wait until the window reports its new size, then place. The snap path
+as it stands does not do that waiting and loses the Tile on such a window. Whether the
+intermediate maximised frame is visible was not measured (the window is at opacity 0 at `map`;
+same caveat as in section 1).
+
+**Two monitors** (1280x720 and 1024x768 side by side, work areas `[0,32,1280,688]` and
+`[1280,0,1024,768]`): an unplaced window opens on the first monitor (`monitor 0`, centred).
+Placed at `map` onto the second (`[1400,100,700,450]`), the first visible frame is already
+there and the window reports `monitor 1`. Not tested: monitor removal and fitting (a later
+ticket), differing scale factors.
+
 ## Findings that change or confirm the spec
 
 - Confirms: the offset for a second window must be done by SnapTile; dialogs keep a different
@@ -207,11 +249,16 @@ with the Tile `left` and the rectangle `[0,32,640,688]`:
   dialog (section 2). Open decision for the maintainer.
 - Contradicts (in part): reusing the snap path unchanged would invent a size before tiling
   from the application's default; it must accept the remembered size or none (section 4).
+- Refines: "SnapTile's place wins against an application's own restoring" holds for a window that
+  maximises itself at start only with un-maximise, wait for the size change, then place; and a
+  window that goes full screen later still wins against SnapTile (section 5).
 
 ## What I did not check
 
-- A real desktop (longer fade-in, real monitors, scaling), several monitors, X11 (out of scope).
+- A real desktop (longer fade-in, real monitors, scaling), monitor removal and fitting, X11
+  (out of scope).
 - Applications other than a small GTK 4 test client (Electron, Qt, Firefox and others may
-  answer the size request later or ask for maximised/full screen themselves).
-- Whether an application's own restoring (for example asking to be maximised) is overridden by
-  placing at `map`; that belongs to the ticket that builds it.
+  answer the size request later or ask for maximised/full screen in other ways).
+- The GTK-backend file chooser on GNOME 51 (aborts in the container image). The Nautilus chooser,
+  which GNOME uses, ran on both.
+- Whether the maximised frame before an un-maximise is ever visible on screen.

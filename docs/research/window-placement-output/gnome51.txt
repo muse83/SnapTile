@@ -1,196 +1,260 @@
 === gnome51 ===
-GNOME Shell 51.1; work area [0,32,1280,688]
+GNOME Shell 51.1; work areas "[[0,32,1280,688]]"
 
 ## 1. Life of a new window, no placement (what is known at each moment)
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +   0ms notify::title  title='main' app=None class=None frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
+  w1 +   1ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +   1ms notify::title  title='main' app=None class=None frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
   w1 +   1ms notify::wm-class title='main' app=None class='org.snaptile.Research' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
   w1 +   1ms notify::gtk-application-id title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
-  w1 +  41ms position-changed title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
-  w1 +  41ms size-changed   title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  42ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  42ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  60ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=255
-  w1 +1844ms notify::wm-class title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=True
+  w1 +  43ms position-changed title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
+  w1 +  43ms size-changed   title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  45ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  45ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  63ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=255
 
 ## 1b. The moments before the window is shown (no placement)
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
   w1 +   0ms notify::title  title='main' app=None class=None frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
-  w1 +   1ms notify::wm-class title='main' app=None class='org.snaptile.Research' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
-  w1 +   1ms notify::gtk-application-id title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
-  w1 +  41ms position-changed title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
-  w1 +  41ms size-changed   title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  42ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms notify::wm-class title='main' app=None class='org.snaptile.Research' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
+  w1 +   0ms notify::gtk-application-id title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] mapped=False
+  w1 +  42ms position-changed title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
+  w1 +  42ms size-changed   title='main' app='org.snaptile.Research' class='org.snaptile.Research' frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] mapped=False
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  44ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
 -- placing at notify::gtk-application-id (move_resize to 200,150 700x450)
-  w1 +   1ms placed         via=move_resize at=notify::gtk-application-id before=[0, 0, 0, 0] after=[0, 0, 0, 0]
-  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
-  w1 +  45ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=0
-  w1 +  60ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=255
+  w1 +   0ms placed         via=move_resize at=notify::gtk-application-id before=[0, 0, 0, 0] after=[0, 0, 0, 0]
+  w1 +  45ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
+  w1 +  46ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=0
+  w1 +  62ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=255
 -- placing at notify::title (move_resize to 200,150 700x450)
   w1 +   0ms placed         via=move_resize at=notify::title before=[0, 0, 0, 0] after=[0, 0, 0, 0]
-  w1 +  46ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
-  w1 +  47ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=0
-  w1 +  62ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=255
+  w1 +  45ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
+  w1 +  46ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=0
+  w1 +  61ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=255
 
 ## 2. Placing at each moment: target x=200 y=150 700x450 (default would be 400x300)
 -- via=move_resize at=window-created
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +   1ms placed         via=move_resize at=window-created before=[0, 0, 0, 0] after=[0, 0, 0, 0]
-  w1 +  40ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
-  w1 +  42ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=0
-  w1 +  42ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
-  w1 +  57ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=255
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +   0ms placed         via=move_resize at=window-created before=[0, 0, 0, 0] after=[0, 0, 0, 0]
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
+  w1 +  44ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=0
+  w1 +  44ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor[mapped=True visible=True opacity=0]
+  w1 +  60ms frame          frame=[290, 151, 700, 450] buffer=[276, 139, 728, 479] actor=[276, 139, 728, 479] opacity=255
 -- via=move_resize at=map
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  41ms placed         via=move_resize at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
-  w1 +  42ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  43ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  42ms placed         via=move_resize at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+  w1 +  43ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  43ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
   w1 +  58ms frame          frame=[200, 150, 700, 450] buffer=[186, 138, 728, 479] actor=[186, 138, 728, 479] opacity=255
 -- via=move_resize at=first-frame
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
   w1 +  43ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  43ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  43ms placed         via=move_resize at=first-frame before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+  w1 +  43ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  44ms placed         via=move_resize at=first-frame before=[440, 226, 400, 300] after=[440, 226, 400, 300]
   w1 +  59ms frame          frame=[200, 150, 700, 450] buffer=[186, 138, 728, 479] actor=[186, 138, 728, 479] opacity=255
 -- via=move at=window-created
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
   w1 +   0ms placed         via=move at=window-created before=[0, 0, 0, 0] after=[0, 0, 0, 0]
-  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
   w1 +  43ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  43ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  43ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
   w1 +  59ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=255
 -- via=move at=map
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  41ms placed         via=move at=map before=[440, 226, 400, 300] after=[200, 150, 400, 300]
-  w1 +  42ms frame          frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor=[186, 138, 428, 329] opacity=0
-  w1 +  42ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  57ms frame          frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor=[186, 138, 428, 329] opacity=255
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  44ms placed         via=move at=map before=[440, 226, 400, 300] after=[200, 150, 400, 300]
+  w1 +  46ms frame          frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor=[186, 138, 428, 329] opacity=0
+  w1 +  46ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  61ms frame          frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor=[186, 138, 428, 329] opacity=255
 -- via=move at=first-frame
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  44ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  44ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w1 +  44ms placed         via=move at=first-frame before=[440, 226, 400, 300] after=[200, 150, 400, 300]
-  w1 +  60ms frame          frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor=[186, 138, 428, 329] opacity=255
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  46ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  46ms first-frame    title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  46ms placed         via=move at=first-frame before=[440, 226, 400, 300] after=[200, 150, 400, 300]
+  w1 +  65ms frame          frame=[200, 150, 400, 300] buffer=[186, 138, 428, 329] actor=[186, 138, 428, 329] opacity=255
 
 ## 2b. Same as 2 with the shell's window animations switched off (map and first-frame only)
 -- via=move_resize at=map, animations off
   w1 +  43ms placed         via=move_resize at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
-  w1 +  45ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  44ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
   w1 +  60ms frame          frame=[200, 150, 700, 450] buffer=[186, 138, 728, 479] actor=[186, 138, 728, 479] opacity=255
 -- via=move_resize at=first-frame, animations off
-  w1 +  43ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  43ms placed         via=move_resize at=first-frame before=[440, 226, 400, 300] after=[440, 226, 400, 300]
-  w1 +  58ms frame          frame=[200, 150, 700, 450] buffer=[186, 138, 728, 479] actor=[186, 138, 728, 479] opacity=255
+  w1 +  45ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  45ms placed         via=move_resize at=first-frame before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+  w1 +  61ms frame          frame=[200, 150, 700, 450] buffer=[186, 138, 728, 479] actor=[186, 138, 728, 479] opacity=255
 -- no placement, animations off
-  w1 +  53ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  69ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=255
+  w1 +  44ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  60ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=255
 
 ## 3. Placing through the drag's own snap path (left half, then a window with minimum size 700x500)
 -- at=window-created minimum=none
-  w1 +   0ms placed         via=snap at=window-created before=[0, 0, 0, 0] after=[0, 0, 0, 0]
-  w1 +  44ms frame          frame=[320, 32, 640, 688] buffer=[306, 20, 668, 717] actor=[306, 20, 668, 717] opacity=0
-  w1 +  63ms frame          frame=[320, 32, 640, 688] buffer=[306, 20, 668, 717] actor=[306, 20, 668, 717] opacity=255
+  w1 +   1ms placed         via=snap at=window-created before=[0, 0, 0, 0] after=[0, 0, 0, 0]
+  w1 +  49ms frame          frame=[320, 32, 640, 688] buffer=[306, 20, 668, 717] actor=[306, 20, 668, 717] opacity=0
+  w1 +  68ms frame          frame=[320, 32, 640, 688] buffer=[306, 20, 668, 717] actor=[306, 20, 668, 717] opacity=255
    tiled record (Tile, size from before): "[{"tile":"left","sizeBefore":{"width":0,"height":0}}]"; final frame: "[[320,32,640,688]]"
 -- at=map minimum=none
-  w1 +  41ms placed         via=snap at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
-  w1 +  42ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  61ms frame          frame=[0, 32, 640, 688] buffer=[-14, 20, 668, 717] actor=[-14, 20, 668, 717] opacity=255
+  w1 +  44ms placed         via=snap at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+  w1 +  45ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  63ms frame          frame=[0, 32, 640, 688] buffer=[-14, 20, 668, 717] actor=[-14, 20, 668, 717] opacity=255
    tiled record (Tile, size from before): "[{"tile":"left","sizeBefore":{"width":400,"height":300}}]"; final frame: "[[0,32,640,688]]"
 -- at=first-frame minimum=none
-  w1 +  43ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
-  w1 +  44ms placed         via=snap at=first-frame before=[440, 226, 400, 300] after=[440, 226, 400, 300]
-  w1 +  61ms frame          frame=[0, 32, 640, 688] buffer=[-14, 20, 668, 717] actor=[-14, 20, 668, 717] opacity=255
+  w1 +  45ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  45ms placed         via=snap at=first-frame before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+  w1 +  62ms frame          frame=[0, 32, 640, 688] buffer=[-14, 20, 668, 717] actor=[-14, 20, 668, 717] opacity=255
    tiled record (Tile, size from before): "[{"tile":"left","sizeBefore":{"width":400,"height":300}}]"; final frame: "[[0,32,640,688]]"
 -- at=window-created minimum=700x500
   w1 +   0ms placed         via=snap at=window-created before=[0, 0, 0, 0] after=[0, 0, 0, 0]
-  w1 +  44ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=0
-  w1 +  63ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=255
+  w1 +  47ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=0
+  w1 +  65ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=255
    tiled record (Tile, size from before): "[{"tile":"left","sizeBefore":{"width":0,"height":0}}]"; final frame: "[[0,32,700,688]]"
 -- at=map minimum=700x500
-  w1 +  45ms placed         via=snap at=map before=[290, 126, 700, 500] after=[0, 32, 700, 500]
-  w1 +  46ms frame          frame=[0, 32, 700, 500] buffer=[-14, 20, 728, 529] actor=[-14, 20, 728, 529] opacity=0
-  w1 +  64ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=255
+  w1 +  46ms placed         via=snap at=map before=[290, 126, 700, 500] after=[0, 32, 700, 500]
+  w1 +  47ms frame          frame=[0, 32, 700, 500] buffer=[-14, 20, 728, 529] actor=[-14, 20, 728, 529] opacity=0
+  w1 +  66ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=255
    tiled record (Tile, size from before): "[{"tile":"left","sizeBefore":{"width":700,"height":500}}]"; final frame: "[[0,32,700,688]]"
 -- at=first-frame minimum=700x500
-  w1 +  46ms frame          frame=[290, 126, 700, 500] buffer=[276, 114, 728, 529] actor=[276, 114, 728, 529] opacity=0
-  w1 +  46ms placed         via=snap at=first-frame before=[290, 126, 700, 500] after=[0, 32, 700, 500]
-  w1 +  64ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=255
+  w1 +  47ms frame          frame=[290, 126, 700, 500] buffer=[276, 114, 728, 529] actor=[276, 114, 728, 529] opacity=0
+  w1 +  48ms placed         via=snap at=first-frame before=[290, 126, 700, 500] after=[0, 32, 700, 500]
+  w1 +  65ms frame          frame=[0, 32, 700, 688] buffer=[-14, 20, 728, 717] actor=[-14, 20, 728, 717] opacity=255
    tiled record (Tile, size from before): "[{"tile":"left","sizeBefore":{"width":700,"height":500}}]"; final frame: "[[0,32,700,688]]"
 
 ## 4. Dialogs: what the shell knows about them at the three moments
 -- mode=modal
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 +  17ms map            title='modal-dialog' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=True fs=False frame=[490, 301, 300, 150] buffer=[476, 289, 328, 179] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  18ms map            title='modal-dialog' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=True fs=False max=False frame=[490, 301, 300, 150] buffer=[476, 289, 328, 179] actor[mapped=True visible=True opacity=0]
 -- mode=transient
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 +  18ms map            title='transient-window' app=None class='python3' type=0 parent='main'/'org.snaptile.Research' move=True resize=True fs=False frame=[490, 276, 300, 150] buffer=[476, 264, 328, 179] actor[mapped=True visible=True opacity=0]
+  w1 +   1ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  45ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  17ms map            title='transient-window' app=None class='python3' type=0 parent='main'/'org.snaptile.Research' move=True resize=True fs=False max=False frame=[490, 276, 300, 150] buffer=[476, 264, 328, 179] actor[mapped=True visible=True opacity=0]
 -- mode=alert
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 +  62ms map            title='' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=False fs=False frame=[546, 310, 188, 132] buffer=[534, 298, 212, 156] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  17ms map            title='' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=False fs=False max=False frame=[546, 310, 188, 132] buffer=[534, 298, 212, 156] actor[mapped=True visible=True opacity=0]
 -- mode=about
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 +  17ms map            title='About about-dialog' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=False fs=False frame=[430, 208, 420, 337] buffer=[416, 196, 448, 366] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  17ms map            title='About about-dialog' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=False fs=False max=False frame=[430, 208, 420, 337] buffer=[416, 196, 448, 366] actor[mapped=True visible=True opacity=0]
 -- mode=chooser
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 + 151ms map            title='chooser-dialog' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=True fs=False frame=[207, 213, 867, 327] buffer=[193, 201, 895, 356] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  34ms map            title='chooser-dialog' app=None class='python3' type=4 parent='main'/'org.snaptile.Research' move=True resize=True fs=False max=False frame=[207, 213, 867, 327] buffer=[193, 201, 895, 356] actor[mapped=True visible=True opacity=0]
 -- mode=portal
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  40ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 + 174ms map            title='portal-dialog' app=None class='org.gnome.Nautilus' type=4 parent='main'/'org.snaptile.Research' move=True resize=True fs=False frame=[195, 101, 890, 550] buffer=[170, 76, 940, 600] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  53ms map            title='portal-dialog' app=None class='org.gnome.Nautilus' type=4 parent='main'/'org.snaptile.Research' move=True resize=True fs=False max=False frame=[195, 101, 890, 550] buffer=[170, 76, 940, 600] actor[mapped=True visible=True opacity=0]
 -- mode=portal-orphan
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 +  18ms map            title='portal-dialog' app='org.gnome.Nautilus' class='org.gnome.Nautilus' type=0 parent=None/None move=True resize=True fs=False frame=[195, 101, 890, 550] buffer=[170, 76, 940, 600] actor[mapped=True visible=True opacity=0]
+  w1 +   1ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  18ms map            title='portal-dialog' app='org.gnome.Nautilus' class='org.gnome.Nautilus' type=0 parent=None/None move=True resize=True fs=False max=False frame=[195, 101, 890, 550] buffer=[170, 76, 940, 600] actor[mapped=True visible=True opacity=0]
 -- mode=orphan-modal
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w2 +  18ms map            title='orphan-modal' app=None class='python3' type=4 parent=None/None move=True resize=True fs=False frame=[490, 301, 300, 150] buffer=[476, 289, 328, 179] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  45ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w2 +  17ms map            title='orphan-modal' app=None class='python3' type=4 parent=None/None move=True resize=True fs=False max=False frame=[490, 301, 300, 150] buffer=[476, 289, 328, 179] actor[mapped=True visible=True opacity=0]
 -- mode=fixed
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=False fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=False fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
 -- mode=fullscreen
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  44ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
 
 ## 5. GNOME's own placement of a second and third window of one application
 -- first window left where GNOME puts it
-  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +  17ms map            title='second' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[490, 276, 400, 300] buffer=[476, 264, 428, 329] actor[mapped=True visible=True opacity=0]
-  w3 +  18ms map            title='third' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[540, 326, 400, 300] buffer=[526, 314, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +  18ms map            title='second' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[490, 276, 400, 300] buffer=[476, 264, 428, 329] actor[mapped=True visible=True opacity=0]
+  w3 +  18ms map            title='third' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[540, 326, 400, 300] buffer=[526, 314, 428, 329] actor[mapped=True visible=True opacity=0]
 -- first window moved by the extension to x=50 y=60 500x400 before the second opens
-  w1 +  53ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w2 +  18ms map            title='second' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
-  w3 +  17ms map            title='third' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[490, 276, 400, 300] buffer=[476, 264, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w2 +  18ms map            title='second' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w3 +  18ms map            title='third' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[490, 276, 400, 300] buffer=[476, 264, 428, 329] actor[mapped=True visible=True opacity=0]
+
+## 6. A real Nautilus file-manager window next to the parentless file chooser (compare with section 4)
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  60ms map            title='tmp' app='org.gnome.Nautilus' class='org.gnome.Nautilus' type=0 parent=None/None move=True resize=True fs=False max=False frame=[195, 101, 890, 550] buffer=[170, 76, 940, 600] actor[mapped=True visible=True opacity=0]
+
+## 7. Windows that restore themselves: asking for full screen later, and for maximised at start
+-- mode=fullscreen placement=none (200,150 700x450 at map)
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+   state 5 s after start: "[{"fullscreen":true,"maximized":false,"frame":[0,0,1280,720],"monitor":0}]"
+-- mode=fullscreen placement=map (200,150 700x450 at map)
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  43ms placed         via=move_resize at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+   state 5 s after start: "[{"fullscreen":true,"maximized":false,"frame":[0,0,1280,720],"monitor":0}]"
+-- mode=fullscreen placement=unmax (200,150 700x450 at map)
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  43ms placed         via=unmaximize_move_resize at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+   state 5 s after start: "[{"fullscreen":true,"maximized":false,"frame":[0,0,1280,720],"monitor":0}]"
+-- mode=fullscreen placement=unmaxwait (200,150 700x450 at map)
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  42ms placed         via=unmaximize_wait at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+   state 5 s after start: "[{"fullscreen":true,"maximized":false,"frame":[0,0,1280,720],"monitor":0}]"
+-- mode=fullscreen placement=snap (200,150 700x450 at map)
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  43ms placed         via=snap at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+   state 5 s after start: "[{"fullscreen":true,"maximized":false,"frame":[0,0,1280,720],"monitor":0}]"
+-- mode=maximized placement=none (200,150 700x450 at map)
+  w1 +  27ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=False fs=False max=True frame=[0, 32, 1280, 688] buffer=[0, 32, 1280, 688] actor[mapped=True visible=True opacity=0]
+   state 5 s after start: "[{"fullscreen":false,"maximized":true,"frame":[0,32,1280,688],"monitor":0}]"
+-- mode=maximized placement=map (200,150 700x450 at map)
+  w1 +  32ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=False fs=False max=True frame=[0, 32, 1280, 688] buffer=[0, 32, 1280, 688] actor[mapped=True visible=True opacity=0]
+  w1 +  32ms placed         via=move_resize at=map before=[0, 32, 1280, 688] after=[0, 32, 1280, 688]
+   state 5 s after start: "[{"fullscreen":false,"maximized":true,"frame":[0,32,1280,688],"monitor":0}]"
+-- mode=maximized placement=unmax (200,150 700x450 at map)
+  w1 +  28ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=False fs=False max=True frame=[0, 32, 1280, 688] buffer=[0, 32, 1280, 688] actor[mapped=True visible=True opacity=0]
+  w1 +  30ms placed         via=unmaximize_move_resize at=map before=[0, 32, 1280, 688] after=[0, 32, 1280, 688]
+   state 5 s after start: "[{"fullscreen":false,"maximized":false,"frame":[0,0,400,300],"monitor":0}]"
+-- mode=maximized placement=unmaxwait (200,150 700x450 at map)
+  w1 +  26ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=False fs=False max=True frame=[0, 32, 1280, 688] buffer=[0, 32, 1280, 688] actor[mapped=True visible=True opacity=0]
+  w1 +  27ms placed         via=unmaximize_wait at=map before=[0, 32, 1280, 688] after=[0, 32, 1280, 688]
+   state 5 s after start: "[{"fullscreen":false,"maximized":false,"frame":[200,150,700,450],"monitor":0}]"
+-- mode=maximized placement=snap (200,150 700x450 at map)
+  w1 +  31ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=False fs=False max=True frame=[0, 32, 1280, 688] buffer=[0, 32, 1280, 688] actor[mapped=True visible=True opacity=0]
+  w1 +  36ms placed         via=snap at=map before=[0, 32, 1280, 688] after=[0, 32, 1280, 688]
+   state 5 s after start: "[{"fullscreen":false,"maximized":false,"frame":[0,0,400,300],"monitor":0}]"
+
+## 8. Several monitors (needs MONITORS='1280x720 1024x768'): default place, and placing onto the second monitor at map
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+   state: "[{"fullscreen":false,"maximized":false,"frame":[440,226,400,300],"monitor":0}]"
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  42ms placed         via=move_resize at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+  w1 +  44ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  59ms frame          frame=[1205, 100, 700, 450] buffer=[1191, 88, 728, 479] actor=[1191, 88, 728, 479] opacity=255
+   state: "[{"fullscreen":false,"maximized":false,"frame":[1205,100,700,450],"monitor":0}]"
 
 Shell log (errors only):
 
-### Same dialog test with the GTK portal backend instead of Nautilus (file chooser portal = gtk)
+### Two monitors (MONITORS='1280x720 1024x768')
+## 8. Several monitors (needs MONITORS='1280x720 1024x768'): default place, and placing onto the second monitor at map
+  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+   state: "[{"fullscreen":false,"maximized":false,"frame":[440,226,400,300],"monitor":0}]"
+  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +  42ms placed         via=move_resize at=map before=[440, 226, 400, 300] after=[440, 226, 400, 300]
+  w1 +  43ms frame          frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor=[426, 214, 428, 329] opacity=0
+  w1 +  58ms frame          frame=[1400, 100, 700, 450] buffer=[1386, 88, 728, 479] actor=[1386, 88, 728, 479] opacity=255
+   state: "[{"fullscreen":false,"maximized":false,"frame":[1400,100,700,450],"monitor":1}]"
+
+Shell log (errors only):
+
+### Dialog test with the GTK portal backend instead of Nautilus (file chooser portal = gtk)
 -- mode=portal
 Bail out! Gtk:ERROR:../gtk/gtk/gtkiconhelper.c:495:ensure_surface_for_gicon: assertion failed (error == NULL): Failed to load /usr/share/icons/Adwaita/scalable/status/image-missing.svg: Unrecognized image file format (gdk-pixbuf-error-quark, 3)
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  42ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +   1ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
 -- mode=portal-orphan
 Bail out! Gtk:ERROR:../gtk/gtk/gtkiconhelper.c:495:ensure_surface_for_gicon: assertion failed (error == NULL): Failed to load /usr/share/icons/Adwaita/scalable/status/image-missing.svg: Unrecognized image file format (gdk-pixbuf-error-quark, 3)
-  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
-  w1 +  43ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
+  w1 +   0ms window-created title=None app=None class=None type=0 parent=None/None move=True resize=True fs=False max=False frame=[0, 0, 0, 0] buffer=[0, 0, 0, 0] actor[mapped=False visible=False opacity=255]
+  w1 +  41ms map            title='main' app='org.snaptile.Research' class='org.snaptile.Research' type=0 parent=None/None move=True resize=True fs=False max=False frame=[440, 226, 400, 300] buffer=[426, 214, 428, 329] actor[mapped=True visible=True opacity=0]
 
 Shell log (errors only):

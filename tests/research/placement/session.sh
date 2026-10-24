@@ -15,10 +15,12 @@ ev() {
 
 gsettings set org.gnome.shell enabled-extensions "['placement-probe@snaptile.test']"
 gsettings set org.gnome.shell disable-user-extensions false
-gnome-shell --headless --wayland --no-x11 --virtual-monitor 1280x720 >/tmp/research-shell.log 2>&1 &
+monitor_args=()
+for size in ${MONITORS:-1280x720}; do monitor_args+=(--virtual-monitor "$size"); done
+gnome-shell --headless --wayland --no-x11 "${monitor_args[@]}" >/tmp/research-shell.log 2>&1 &
 SHELL_PID=$!
 for _ in $(seq 40); do ev 1 >/dev/null 2>&1 && break; sleep 0.5; done
-echo "GNOME Shell $(gnome-shell --version | sed 's/GNOME Shell //'); work area $(ev '(() => { const a = Main.layoutManager.getWorkAreaForMonitor(0); return [a.x, a.y, a.width, a.height]; })()')"
+echo "GNOME Shell $(gnome-shell --version | sed 's/GNOME Shell //'); work areas $(ev 'JSON.stringify(Main.layoutManager.monitors.map((m, i) => { const a = Main.layoutManager.getWorkAreaForMonitor(i); return [a.x, a.y, a.width, a.height]; }))')"
 
 # The shell starts in the overview, where the window layer is not painted at all (no map, no
 # first-frame). A user's desktop is out of the overview, so leave it before any experiment.
@@ -55,7 +57,9 @@ arm() { # arm <place json> | arm null
     ev "probe.setPlace($1)" >/dev/null
 }
 
-experiments="${*:-hooks early place noanim snap dialogs second}"
+STATE='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.get_title() === "main").map(w => { const r = w.get_frame_rect(); return {fullscreen: w.is_fullscreen(), maximized: w.is_maximized(), frame: [r.x, r.y, r.width, r.height], monitor: w.get_monitor()}; }))'
+
+experiments="${*:-hooks early place noanim snap dialogs second nautilus late twomon}"
 for exp in $experiments; do
     echo
     case $exp in
@@ -145,6 +149,56 @@ for exp in $experiments; do
             dump 'window-created,map'
             stop_client
         done
+        ;;
+    nautilus)
+        echo "## 6. A real Nautilus file-manager window next to the parentless file chooser (compare with section 4)"
+        arm null
+        nautilus --new-window /tmp >/tmp/research-nautilus-window.log 2>&1 &
+        sleep 6
+        dump 'window-created,map'
+        pkill -f "nautilus --new-window" 2>/dev/null
+        ev 'global.get_window_actors().forEach(a => a.meta_window.delete(global.get_current_time())), 1' >/dev/null
+        sleep 1.5
+        ev 'probe.forget()' >/dev/null
+        ;;
+    late)
+        echo "## 7. Windows that restore themselves: asking for full screen later, and for maximised at start"
+        for mode in fullscreen maximized; do
+            for hook in none map unmax unmaxwait snap; do
+                echo "-- mode=$mode placement=$hook (200,150 700x450 at map)"
+                case $hook in
+                none) arm null;;
+                map) arm "{hook: 'map', via: 'move_resize', match: '*', rect: [200, 150, 700, 450]}";;
+                unmax) arm "{hook: 'map', via: 'unmaximize_move_resize', match: '*', rect: [200, 150, 700, 450]}";;
+                unmaxwait) arm "{hook: 'map', via: 'unmaximize_wait', match: '*', rect: [200, 150, 700, 450]}";;
+                snap) ev "$ENABLE" >/dev/null; arm "{hook: 'map', via: 'snap', match: '*', tile: 'left', rect: [0, 32, 640, 688]}";;
+                esac
+                start_client CLIENT_APP_ID=org.snaptile.Research CLIENT_TITLE=main CLIENT_MODE=$mode
+                sleep 1
+                dump 'map,placed'
+                sleep 4
+                echo "   state 5 s after start: $(ev "$STATE")"
+                stop_client
+                [ $hook = snap ] && ev "$DISABLE" >/dev/null
+            done
+        done
+        arm null
+        ;;
+    twomon)
+        echo "## 8. Several monitors (needs MONITORS='1280x720 1024x768'): default place, and placing onto the second monitor at map"
+        arm null
+        start_client CLIENT_APP_ID=org.snaptile.Research CLIENT_TITLE=main CLIENT_MODE=plain
+        sleep 4
+        dump 'map'
+        echo "   state: $(ev "$STATE")"
+        stop_client
+        arm "{hook: 'map', via: 'move_resize', match: '*', rect: [1400, 100, 700, 450]}"
+        start_client CLIENT_APP_ID=org.snaptile.Research CLIENT_TITLE=main CLIENT_MODE=plain
+        sleep 4
+        dump 'map,placed,frame'
+        echo "   state: $(ev "$STATE")"
+        stop_client
+        arm null
         ;;
     second)
         echo "## 5. GNOME's own placement of a second and third window of one application"

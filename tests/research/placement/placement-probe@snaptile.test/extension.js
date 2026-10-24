@@ -41,7 +41,7 @@ export default class PlacementProbe extends Extension {
         this._dbus = null;
     }
 
-    /** setPlace({hook, rect:[x,y,w,h], via:'move_resize'|'move'|'snap', match:'*', tile}) or null. match is a title prefix, '*' for any. */
+    /** setPlace({hook, rect:[x,y,w,h], via:'move_resize'|'unmaximize_move_resize'|'move'|'snap', match:'*', tile}) or null. match is a title prefix, '*' for any. */
     setPlace(place) {
         this._place = place;
         return 1;
@@ -81,6 +81,7 @@ export default class PlacementProbe extends Extension {
             move: w.allows_move(),
             resize: w.allows_resize(),
             fullscreen: w.is_fullscreen(),
+            maximized: w.is_maximized(),
             frame: rectOf(w.get_frame_rect()),
             buffer: rectOf(w.get_buffer_rect()),
             actor: actor ? {mapped: actor.mapped, visible: actor.visible, opacity: actor.opacity} : null,
@@ -136,7 +137,19 @@ export default class PlacementProbe extends Extension {
         const [x, y, width, height] = place.rect;
         const before = rectOf(w.get_frame_rect());
         try {
-            if (place.via === 'move')
+            if (place.via === 'unmaximize_wait') {
+                // Unmaximising is answered later by the client; place when the size has changed.
+                const id = w.connect('size-changed', () => {
+                    w.disconnect(id);
+                    w.move_resize_frame(true, x, y, width, height);
+                    this._log(w, 'placed-after-unmaximize', {after: rectOf(w.get_frame_rect())});
+                });
+                w.unmaximize();
+            } else if (place.via === 'unmaximize_move_resize') {
+                if (w.is_maximized())
+                    w.unmaximize();
+                w.move_resize_frame(true, x, y, width, height);
+            } else if (place.via === 'move')
                 w.move_frame(true, x, y);
             else if (place.via === 'snap') {
                 const area = Main.layoutManager.getWorkAreaForMonitor(0);

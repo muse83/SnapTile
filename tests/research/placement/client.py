@@ -15,6 +15,7 @@ CLIENT_DELAY seconds (default 3) does the rest:
   orphan-modal      a modal window without a parent
   fixed             the main window cannot be resized
   fullscreen        the main window goes full screen after the delay
+  maximized         the main window asks to be maximised before it is shown (its own restoring)
 """
 import os
 import gi
@@ -46,6 +47,8 @@ def activate(app):
     if minimum:
         width, height = minimum.split('x')
         main.set_size_request(int(width), int(height))
+    if MODE == 'maximized':
+        main.maximize()
     main.present()
 
     def rest():
