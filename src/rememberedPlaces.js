@@ -40,11 +40,11 @@ export function parsePlaces(text) {
         if (typeof entry === 'object' && entry !== null && isFrame(entry.frame))
             places[key] = {frame: copyFrame(entry.frame)};
     }
-    return trim(places);
+    return keepMostRecent(places);
 }
 
 /** The places without the least recently used applications beyond the limit. */
-function trim(places) {
+function keepMostRecent(places) {
     const keys = Object.keys(places);
     if (keys.length <= MAX_APPLICATIONS)
         return places;
@@ -70,7 +70,7 @@ export function rememberFree(places, key, frame) {
     const result = {...places};
     delete result[key]; // re-insert, so the most recently used application stays last
     result[key] = {frame: copyFrame(frame)};
-    return trim(result);
+    return keepMostRecent(result);
 }
 
 /**

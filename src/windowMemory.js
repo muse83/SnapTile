@@ -1,3 +1,4 @@
+import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -47,16 +48,20 @@ export class WindowMemory {
 
     /** Call from the extension's disable(). Saves every open window first. */
     destroy() {
-        this._saveOpenWindows();
-        for (const [object, id] of this._signals)
-            object.disconnect(id);
-        this._signals = [];
-        for (const [window, entry] of this._windows) {
-            window.disconnect(entry.closingId);
-            if (entry.unmaximizedId)
-                window.disconnect(entry.unmaximizedId);
+        try {
+            this._saveOpenWindows();
+            Gio.Settings.sync(); // the session may end right after disable, so write it out now
+        } finally {
+            for (const [object, id] of this._signals)
+                object.disconnect(id);
+            this._signals = [];
+            for (const [window, entry] of this._windows) {
+                window.disconnect(entry.closingId);
+                if (entry.unmaximizedId)
+                    window.disconnect(entry.unmaximizedId);
+            }
+            this._windows.clear();
         }
-        this._windows.clear();
     }
 
     _watch(window, arriving) {
@@ -81,7 +86,11 @@ export class WindowMemory {
         return key;
     }
 
-    /** The user let go of a window after moving or resizing it (mouse or keyboard). */
+    /**
+     * The user let go of a window after moving or resizing it (mouse or keyboard). Drag-to-snap
+     * handles the same signal first (it is enabled first) and records a snapped window as
+     * tiled, so a drop into a Tile is not saved as a free place.
+     */
     _saveAfterGrab(window) {
         const entry = this._windows.get(window);
         const key = entry && this._savableKey(window);
