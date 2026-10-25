@@ -5,8 +5,14 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-pass() { echo "  PASS  $1"; }
-fail() { echo "  FAIL  $1"; FAILS=$((FAILS + 1)); }
+# Time budget: the whole run may take as many seconds as it has checks (193 checks: 193 s), so a
+# new check adds one second at most. Every check prints how long it took since the one before.
+START=$(date +%s.%N)
+LAST=$START
+CHECKS=0
+took() { local now; now=$(date +%s.%N); awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'; LAST=$now; }
+pass() { CHECKS=$((CHECKS + 1)); echo "  PASS  [$(took)s] $1"; }
+fail() { CHECKS=$((CHECKS + 1)); echo "  FAIL  [$(took)s] $1"; FAILS=$((FAILS + 1)); }
 
 # ev <js expression>: runs it in the shell via the test helper, prints the JSON result.
 ev() {
@@ -24,6 +30,21 @@ check() { # check <description> <expected> <js expression>
     if [ "$got" = "$2" ]; then pass "$1"; else fail "$1 (expected $2, got $got)"; fi
 }
 
+await_settled() { # await_settled <title>: until the window is shown and its frame stayed the same for four reads (at most 8 s)
+    local js previous="" same=0 now
+    js="JSON.stringify(global.get_window_actors().filter(a => a.mapped && a.meta_window.title === '$1').map(a => { const r = a.meta_window.get_frame_rect(); return [r.x, r.y, r.width, r.height]; }))"
+    for _ in $(seq 40); do
+        now=$(ev "$js")
+        if [ "$now" != '"[]"' ] && [ "$now" = "$previous" ]; then
+            same=$((same + 1))
+            [ $same -ge 3 ] && return
+        else
+            same=0
+        fi
+        previous=$now
+        sleep 0.2
+    done
+}
 gsettings set org.gnome.shell enabled-extensions "['helper@snaptile.test']"
 gsettings set org.gnome.shell disable-user-extensions false
 
@@ -64,10 +85,8 @@ check "hint text names Active Screen Edges" true \
 check "hint has normal urgency, so Do Not Disturb silences it" '"1"' \
     'Main.messageTray.getSources().filter(s => s.title === "SnapTile").flatMap(s => s.notifications.map(n => n.urgency)).join("|")'
 gsettings set org.gnome.mutter edge-tiling false
-sleep 0.5
 check "hint goes away when the user switches GNOME edge tiling off" 0 "$SOURCES"
 gsettings set org.gnome.mutter edge-tiling true
-sleep 0.5
 check "switching it back on while enabled shows no new hint" 0 "$SOURCES"
 ev "$DISABLE" >/dev/null
 check "extension is inactive after disable" $INACTIVE "$STATE"
@@ -89,7 +108,7 @@ check "GNOME setting still off" false "$(gsettings get org.gnome.mutter edge-til
 echo "Drag and screenshot in the headless shell (what later tickets build on):"
 WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >/tmp/smoke-window.log 2>&1 &
 WINDOW_PID=$!
-sleep 4
+await_settled probe-window
 RECT='JSON.stringify(global.get_window_actors().map(a => a.meta_window).filter(w => w.title === "probe-window").map(w => { const r = w.get_frame_rect(); return [r.x, r.y, r.width, r.height]; })[0])'
 check "client window appears at its default place" '"[440,226,400,300]"' "$RECT"
 
@@ -97,7 +116,6 @@ check "client window appears at its default place" '"[440,226,400,300]"' "$RECT"
 move() { # the pointer position only settles after the second motion event to a point
     for _ in 1 2; do
         ev "globalThis.__dev.notify_absolute_motion(imports.gi.GLib.get_monotonic_time(), $1, $2), 1" >/dev/null
-        sleep 0.2
     done
 }
 button() { # button PRESSED|RELEASED
@@ -106,31 +124,29 @@ button() { # button PRESSED|RELEASED
 }
 resize_window() { # resize_window X Y WIDTH HEIGHT: asks Mutter for a new frame, like an application would
     ev "global.get_window_actors().map(a => a.meta_window).filter(w => w.title === 'probe-window')[0].move_resize_frame(true, $1, $2, $3, $4), 1" >/dev/null
+    sleep 0.3
 }
 press_escape() {
     for state in PRESSED RELEASED; do
         ev "globalThis.__kbd.notify_keyval(imports.gi.GLib.get_monotonic_time(), 0xff1b, imports.gi.Clutter.KeyState.$state), 1" >/dev/null
-        sleep 0.2
     done
 }
 setup_pointer() { # a virtual pointer for this shell, recording the window grabs it causes
     ev 'globalThis.__dev = global.stage.context.get_backend().get_default_seat().create_virtual_device(imports.gi.Clutter.InputDeviceType.POINTER_DEVICE), globalThis.__kbd = global.stage.context.get_backend().get_default_seat().create_virtual_device(imports.gi.Clutter.InputDeviceType.KEYBOARD_DEVICE), globalThis.__ops = [], global.display.connect("grab-op-begin", (d, w, op) => globalThis.__ops.push(["begin", op])), global.display.connect("grab-op-end", (d, w, op) => globalThis.__ops.push(["end", op])), 1' >/dev/null
     move 32 14; button PRESSED; button RELEASED # the first click after start is needed before clients get input
-    sleep 1
 }
 setup_pointer
 move 640 240; button PRESSED
 for step in "620 220" "500 180" "300 120" "100 60" "20 20"; do move $step; done
 check "dragging the title bar starts a window move" '"begin:1"' 'globalThis.__ops.map(o => o.join(":")).join(",")'
 button RELEASED
-sleep 1
 check "window followed the pointer (y held below the top bar)" '"[-180,32,400,300]"' "$RECT"
 check "release ends the move" '"begin:1,end:1"' 'globalThis.__ops.map(o => o.join(":")).join(",")'
 
 take_shot() { # take_shot FILE: the shell's screenshot, as a PNG file; prints "done" or the error
     rm -f "$1"
     ev "globalThis.__shot = 'pending', (() => { const {Shell, Gio} = imports.gi; const sh = new Shell.Screenshot(); const st = Gio.File.new_for_path('$1').replace(null, false, Gio.FileCreateFlags.NONE, null); sh.screenshot(false, st, (o, res) => { try { sh.screenshot_finish(res); st.close(null); globalThis.__shot = 'done'; } catch (e) { globalThis.__shot = 'error ' + e; } }); })(), 1" >/dev/null
-    sleep 2
+    sleep 0.3
     ev 'globalThis.__shot'
 }
 SHOT=/tmp/smoke-shot.png
@@ -163,10 +179,9 @@ TILED='(() => { const w = global.get_window_actors().map(a => a.meta_window).fin
 
 start_probe() { # start_probe [WIDTHxHEIGHT]: a fresh probe window, with a minimum size if given
     kill $WINDOW_PID 2>/dev/null
-    sleep 1
     PROBE_MIN=${1:-} WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >/tmp/smoke-window.log 2>&1 &
     WINDOW_PID=$!
-    sleep 4
+    await_settled probe-window
 }
 grab_window() { # presses the pointer on the probe window's title bar
     IFS=, read -r fx fy fw fh <<<"$(ev "$RECT" | tr -d '"[]')"
@@ -177,7 +192,7 @@ drag_to() { # drag_to X Y: moves the held window to a pointer position in three 
     move $((GX + 20)) $((GY + 20))
     move $((($1 + GX) / 2)) $((($2 + GY) / 2))
     move $1 $2
-    sleep 0.6
+    sleep 0.3
 }
 snap() { # snap <description> <pointer x> <pointer y> <expected Tile rectangle x,y,w,h> [expected window x,y,w,h]
     grab_window
@@ -185,7 +200,6 @@ snap() { # snap <description> <pointer x> <pointer y> <expected Tile rectangle x
     local preview frame
     preview=$(ev "$PREVIEW")
     button RELEASED
-    sleep 1
     frame=$(ev "$RECT")
     local window=${5:-$4}
     if [ "$preview" = "\"[[$4]]\"" ] && [ "$frame" = "\"[$window]\"" ]; then
@@ -199,11 +213,10 @@ snap_merged() { # snap_merged <description> <pointer x of the first third> <of t
     grab_window
     drag_to "$2" 716
     move "$3" 716
-    sleep 0.6
+    sleep 0.3
     local preview frame
     preview=$(ev "$PREVIEW")
     button RELEASED
-    sleep 1
     frame=$(ev "$RECT")
     if [ "$preview" = "\"[[$4]]\"" ] && [ "$frame" = "\"[$4]\"" ]; then
         pass "$1: preview at $4, window at $4"
@@ -233,17 +246,20 @@ echo "Merged thirds without releasing:"
 grab_window
 drag_to 100 716
 check "first third" '"[[0,32,427,688]]"' "$PREVIEW"
-move 640 716; sleep 0.6
+move 640 716
+sleep 0.3
 check "into the next third: left two-thirds" '"[[0,32,854,688]]"' "$PREVIEW"
-move 1200 716; sleep 0.6
+move 1200 716
+sleep 0.3
 check "on into the last third: right two-thirds" '"[[427,32,853,688]]"' "$PREVIEW"
-move 640 716; sleep 0.6
+move 640 716
+sleep 0.3
 check "back to the middle third: only that third" '"[[427,32,427,688]]"' "$PREVIEW"
-move 640 400; sleep 0.6
+move 640 400
+sleep 0.3
 check "leaving the bottom strip hides the preview" '"[]"' "$PREVIEW"
 BEFORE=$(ev "$RECT")
 button RELEASED
-sleep 1
 check "releasing outside every zone leaves the window where it is" "$BEFORE" "$RECT"
 snap_merged "release on the left two-thirds" 100 640 0,32,854,688
 snap_merged "release on the right two-thirds, merged from the right" 1200 640 427,32,853,688
@@ -261,7 +277,6 @@ check "dragging a tiled window out restores its earlier size" '"[400,300]"' "$SI
 check "the shared record no longer has the window" 'null' "$TILED"
 check "no preview in the middle of the screen" '"[]"' "$PREVIEW"
 button RELEASED
-sleep 1
 snap "left half again" 3 360 0,32,640,688
 ev "$DISABLE" >/dev/null
 ev "$ENABLE" >/dev/null
@@ -270,7 +285,6 @@ grab_window
 drag_to 640 300
 check "a window with no remembered size keeps its own" '"[640,688]"' "$SIZE"
 button RELEASED
-sleep 1
 
 echo "Cancelling a drag with Escape:"
 start_probe
@@ -278,26 +292,21 @@ grab_window
 drag_to 3 360
 check "preview is shown before Escape" '"[[0,32,640,688]]"' "$PREVIEW"
 press_escape
-sleep 0.6
 check "Escape hides the preview" '"[]"' "$PREVIEW"
 button RELEASED
-sleep 1
 check "Escape leaves the window unsnapped" '"[440,226,400,300]"' "$RECT"
 snap "left half" 3 360 0,32,640,688
 grab_window
 drag_to 3 360
 check "dragging the tiled window back to a zone shows its preview" '"[[0,32,640,688]]"' "$PREVIEW"
 press_escape
-sleep 0.6
 button RELEASED
-sleep 1
 check "Escape puts a tiled window back into its Tile" '"[0,32,640,688]"' "$RECT"
 check "the shared record still names the Tile" '"left 400x300"' "$TILED"
 grab_window
 drag_to 640 300
 check "it still remembers its earlier size" '"[400,300]"' "$SIZE"
 button RELEASED
-sleep 1
 
 echo "Window that cannot get as small as the Tile (minimum 900x500):"
 start_probe 900x500
@@ -308,11 +317,9 @@ echo "A tiled window that grows beyond its Tile:"
 start_probe
 snap "top-left quarter" 3 3 0,32,640,344
 resize_window 100 100 700 400
-sleep 0.5
 check "it is hung on the Tile's top left corner again" '"[0,32,700,400]"' "$RECT"
 ev "$DISABLE" >/dev/null
 resize_window 100 100 720 420
-sleep 0.5
 check "after disabling, SnapTile no longer touches it" '"[100,100,720,420]"' "$RECT"
 ev "$ENABLE" >/dev/null
 kill $WINDOW_PID 2>/dev/null
@@ -322,7 +329,6 @@ echo "Window look: rounded corners and margin (probe window at 440,226, 400x300,
 # them during a screenshot. Both are switched off for the pixel checks.
 gsettings set org.gnome.desktop.interface enable-animations false
 ev 'Main.overview.hide(), 1' >/dev/null
-sleep 1
 red_at() { python3 "$(dirname "$0")/pixels.py" "$1" "$2" "$3" | cut -d' ' -f1; } # red channel at FILE X Y
 look_of() { # look_of FILE X Y...: W for a window pixel (red 150 or more), D for the bare desktop (red below 100), ? otherwise
     local file=$1 value; shift
@@ -356,7 +362,6 @@ ev "$DISABLE" >/dev/null
 take_shot /tmp/look-off.png >/dev/null
 corner_checks "without SnapTile the plain window has square corners (baseline)" /tmp/look-off.png square
 ev "$ENABLE" >/dev/null
-sleep 1
 take_shot /tmp/look-on.png >/dev/null
 corner_checks "with SnapTile all four corners are cut round" /tmp/look-on.png round
 [ "$(red_at /tmp/look-on.png 640 376)" = 204 ] && pass "the middle of the window is untouched" || fail "the middle of the window is untouched"
@@ -373,30 +378,24 @@ take_shot /tmp/look-off2.png >/dev/null
 corner_checks "after disabling the corners are square again" /tmp/look-off2.png square
 [ "$(red_at /tmp/look-off2.png 441 376)" = 204 ] && [ "$(red_at /tmp/look-off2.png 640 226)" = 204 ] && pass "after disabling the margin is gone: the window is full up to its frame" || fail "after disabling the margin is gone: the window is full up to its frame"
 ev "$ENABLE" >/dev/null
-sleep 1
 
 echo "Window look: what it leaves alone"
 FULLSCREEN_EFFECTS="($PLAIN_ACTOR.meta_window.make_fullscreen(), $EFFECTS)"
 check "a full-screen window has no effect" 0 "$FULLSCREEN_EFFECTS"
-sleep 1
 check "leaving full screen brings it back" 1 "(($PLAIN_ACTOR.meta_window.unmake_fullscreen()), $EFFECTS)"
-sleep 1
 kill $WINDOW_PID 2>/dev/null
-sleep 1
 PROBE_POPOVER=1 start_probe
-sleep 2
+for _ in $(seq 30); do [ "$(ev 'global.get_window_actors().length')" = 2 ] && break; sleep 0.1; done # the probe opens its menu by itself
 check "a menu is its own window next to the application window" 2 'global.get_window_actors().length'
 check "only the application window has the effect, the menu has none" '"application:1,menu:0"' \
     'global.get_window_actors().map(a => `${a.meta_window.get_window_type() === 0 ? "application" : "menu"}:${a.get_effects().length}`).sort().join(",")'
 kill $WINDOW_PID 2>/dev/null
-sleep 1
 
 echo "Window look: the application's own shadow stays"
 start_probe
 ev "$DISABLE" >/dev/null
 take_shot /tmp/shadow-off.png >/dev/null
 ev "$ENABLE" >/dev/null
-sleep 1
 take_shot /tmp/shadow-on.png >/dev/null
 SHADOW_POINTS="438 224 436 222 440 224 438 230 436 300 441 222 840 224 842 226 842 530 440 527 436 524"
 off=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png $SHADOW_POINTS | tr '\n' '|')
@@ -416,7 +415,7 @@ start_probe
 snap "left half (window 1)" 3 360 0,32,640,688
 PROBE_TITLE=probe-second WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >/tmp/smoke-window2.log 2>&1 &
 SECOND_PID=$!
-sleep 4
+await_settled probe-second
 FIRST_RECT=$RECT
 RECT=${RECT//probe-window/probe-second} # the drag helpers now work on window 2
 snap "right half (window 2)" 1276 360 640,32,640,688
@@ -437,13 +436,11 @@ RECT=${RECT//probe-window/probe-second}
 grab_window
 drag_to 700 300
 button RELEASED
-sleep 1
 RECT=$FIRST_RECT
 DROPPED='(() => { const frame = n => global.get_window_actors().map(a => a.meta_window).find(w => w.title === n).get_frame_rect(); const one = frame("probe-window"), two = frame("probe-second"); return JSON.stringify([[one.x, one.y, one.width, one.height], two.width, two.height, two.x < one.x + one.width, two.x <= 700 && 700 < two.x + two.width && two.y <= 300 && 300 < two.y + two.height]); })()'
 check "a window dropped over another one: its earlier size, over the other window, under the pointer, nothing pushes it away" '"[[0,32,640,688],400,300,true,true]"' "$DROPPED"
 kill $SECOND_PID 2>/dev/null
 kill $WINDOW_PID 2>/dev/null
-sleep 1
 
 echo "Window look: the Tile preview matches the snapped window"
 start_probe
@@ -465,10 +462,8 @@ inside=""
 for xy in "644 200" "700 36" "646 38" "660 50"; do same_as_before $xy && inside="$inside [$xy]"; done
 [ -z "$inside" ] && pass "preview: tinted just inside the edge and inside the corner" || fail "preview: these pixels show the bare desktop but should be tinted:$inside"
 button RELEASED
-sleep 1
 check "the snapped window's frame is the Tile the preview marked" '"[640,32,640,344]"' "$RECT"
 kill $WINDOW_PID 2>/dev/null
-sleep 1
 
 echo "Disabling SnapTile during and right after a drag:"
 # Records the timers SnapTile starts and still has pending (not removed, not finished).
@@ -480,14 +475,11 @@ drag_to 3 3
 check "preview is shown before disabling" '"[[0,32,640,344]]"' "$PREVIEW"
 check "the drag has a timer running" 1 "$TIMERS"
 ev "$DISABLE" >/dev/null
-sleep 0.3
 check "no timer is left when disabled during the drag" 0 "$TIMERS"
 check "preview is gone when disabled during the drag" '"[]"' "$PREVIEW"
 move 1276 3
-sleep 0.5
 check "no preview comes back while the drag goes on" '"[]"' "$PREVIEW"
 button RELEASED
-sleep 1
 check "the window is not snapped after disabling" '"[400,300]"' "$SIZE"
 ev "$ENABLE" >/dev/null
 grab_window
@@ -496,7 +488,6 @@ button RELEASED
 check "a drop starts no timer" 0 "$TIMERS"
 ev "$DISABLE" >/dev/null
 check "no timer is left after a drop and after disabling" 0 "$TIMERS"
-sleep 1
 check "extension is inactive after disabling right after a drop" $INACTIVE "$STATE"
 check "no preview left after disabling right after a drop" '"[]"' "$PREVIEW"
 kill $WINDOW_PID 2>/dev/null
@@ -522,21 +513,34 @@ frame_of() { # frame_of <title>: JS for the frame rectangle of that window, or n
     echo "JSON.stringify($(titled "$1").map(w => { const r = w.get_frame_rect(); return [r.x, r.y, r.width, r.height]; })[0] ?? null)"
 }
 MEM_PIDS=()
-start_app() { # start_app <title> <ENV=value>...: a probe window, ready after 4 s
+await_true() { for _ in $(seq 80); do [ "$(ev "$1")" = true ] && return; sleep 0.1; done; } # await_true <js expression>: at most 8 s
+MEM_TITLES=()
+start_app() { # start_app <title> <ENV=value>...: a probe window, ready once its frame has settled
     local title=$1; shift
     env PROBE_TITLE="$title" "$@" WAYLAND_DISPLAY=wayland-0 python3 "$(dirname "$0")/probe-window.py" >"/tmp/smoke-memory-$title.log" 2>&1 &
     MEM_PIDS+=($!)
-    sleep 4
+    MEM_TITLES+=("$title")
+    await_settled "$title"
+    # Probes that do something on their own a moment after they appeared: wait for what they do.
+    case " $* " in *" PROBE_SECOND="*) await_settled "$title-2" ;; esac
+    case " $* " in *" PROBE_DIALOG="*) await_settled probe-dialog ;; esac
+    case " $* " in *" PROBE_LATER="*) await_settled "$title-$(( $(sed -n 's/.*PROBE_LATER=\([0-9]*\).*/\1/p' <<<" $* ") + 1 ))" ;; esac
+    case " $* " in *" PROBE_FULLSCREEN="*) await_true "$(titled "$title").some(w => w.is_fullscreen())" ;; esac
 }
-close_window() { # close_window <title>: asks the window to close, like its close button
+close_window() { # close_window <title>: asks the window to close, like its close button, and waits until it is gone
     ev "$(titled "$1").forEach(w => w.delete(global.get_current_time())), 1" >/dev/null
-    sleep 1.5
+    for _ in $(seq 15); do [ "$(ev "$(titled "$1").length")" = 0 ] && break; sleep 0.2; done
 }
 place_window() { # place_window <title> x y w h: moves the window like the user would (through Mutter)
     ev "$(titled "$1")[0].move_resize_frame(true, $2, $3, $4, $5), 1" >/dev/null
-    sleep 1
 }
-stop_apps() { kill "${MEM_PIDS[@]}" 2>/dev/null; MEM_PIDS=(); sleep 1; }
+stop_apps() { # kills the probes and waits until their windows (also dialogs and second windows) are gone
+    kill "${MEM_PIDS[@]}" 2>/dev/null
+    MEM_PIDS=()
+    local ours="global.get_window_actors().filter(a => /^(${MEM_TITLES[*]// /|})(-[0-9]+)?\$|^probe-dialog\$/.test(a.meta_window.title)).length"
+    MEM_TITLES=()
+    for _ in $(seq 15); do [ "$(ev "$ours")" = 0 ] && break; sleep 0.2; done
+}
 MEM_A='{"org.snaptile.MemA": {frame: {x: 120, y: 90, width: 520, height: 360}}}'
 
 reset_places
@@ -558,7 +562,6 @@ check "two windows opened together: exactly one is put at the remembered place" 
 stop_apps
 reset_places
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_FULLSCREEN=1
-sleep 1
 close_window mem-a
 check "a window that went full screen is not remembered" '""' "$PLACES"
 stop_apps
@@ -603,7 +606,6 @@ ev "$DISABLE" >/dev/null
 store_places "$MEM_A"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 ev "$ENABLE" >/dev/null
-sleep 1
 check "a window that was open when the extension was enabled is not moved" '"[440,226,400,300]"' "$(frame_of mem-a)"
 stop_apps
 ev "$DISABLE" >/dev/null
@@ -644,7 +646,8 @@ echo "  Window memory: saved when a move or resize ends, last action wins, saved
 drag_title() { # drag_title <x> <y> <dx> <dy>: press at x,y on a title bar, move by dx,dy, let go
     move "$1" "$2"; button PRESSED
     move $(($1 + $3 / 2)) $(($2 + $4 / 2)); move $(($1 + $3)) $(($2 + $4))
-    button RELEASED; sleep 1
+    sleep 0.3
+    button RELEASED
 }
 reset_places
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
@@ -729,7 +732,6 @@ stop_apps
 set_places '{"org.snaptile.MemA": {frame: {x: 120, y: 90, width: 520, height: 360}}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 ev "$(titled mem-a)[0].maximize(), 1" >/dev/null
-sleep 1
 close_window mem-a
 check "closing a window maximised with the window button remembers the flag and the free size" '"org.snaptile.MemA=maximized 0,32,1280,688 520x360"' "$KINDS"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
@@ -757,7 +759,6 @@ echo "  Window memory: a second window of an application opens offset from the f
 check "the test monitor has no physical size (1 cm is the 96 DPI fallback)" '"{}"' "JSON.stringify(Main.extensionManager.lookup('$UUID').stateObj._monitorSizes.get(0))"
 set_places "$MEM_A"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=2
-sleep 1
 check "the first window opens at the remembered place" '"[120,90,520,360]"' "$(frame_of mem-a)"
 check "the second window has the remembered size and sits 1 cm right and down from the first" '"[158,128,520,360]"' "$(frame_of mem-a-2)"
 check "a third window steps once more" '"[196,166,520,360]"' "$(frame_of mem-a-3)"
@@ -767,20 +768,17 @@ stop_apps
 
 set_places "$LEFT_TILE"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1
-sleep 1
 check "the first window opens in the remembered Tile" '"[0,32,640,688]|left"' "[$(frame_of mem-a), $(tile_of mem-a)].join('|')"
 check "the second window opens free with the size from before tiling, offset from the Tile's corner" '"[38,70,520,360]|no Tile"' "[$(frame_of mem-a-2), $(tile_of mem-a-2) ?? 'no Tile'].join('|')"
 stop_apps
 
 set_places '{"org.snaptile.MemA": {frame: {x: 0, y: 0, width: 3000, height: 2000}}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1
-sleep 1
 check "a second window with a remembered size larger than the work area is shrunk to it" '"[0,32,1280,688]|[0,32,1280,688]"' "[$(frame_of mem-a), $(frame_of mem-a-2)].join('|')"
 stop_apps
 
 set_places "$MEM_A"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1 PROBE_MAXIMIZE=1
-sleep 1
 check "a second window that maximises itself ends up free, at the offset, not maximised" '"false|[158,128,520,360]"' "[$(titled mem-a-2)[0].is_maximized(), $(frame_of mem-a-2)].join('|')"
 stop_apps
 
@@ -801,7 +799,7 @@ echo "  Window memory: the switch and the clear button in the Extensions manager
 check "the switch is on in a fresh install" true "$MEM.get_boolean('enabled')"
 reset_places
 gnome-extensions prefs "$UUID" >/dev/null 2>&1
-sleep 5
+await_settled SnapTile
 check "the preferences window opens" 1 "$(titled SnapTile).length"
 PREFS_FRAME=$(ev "JSON.stringify($(titled SnapTile).map(w => { const r = w.get_frame_rect(); return [r.x + r.width / 2, r.y + r.height / 2]; })[0])")
 move $(echo "$PREFS_FRAME" | tr -d '[]"' | tr ',' ' ' | awk '{print int($1), int($2)}')
@@ -809,13 +807,12 @@ button PRESSED; button RELEASED
 press_key() { # press_key <keysym>: to the focused window, like the keyboard would
     for state in PRESSED RELEASED; do
         ev "globalThis.__kbd.notify_keyval(imports.gi.GLib.get_monotonic_time(), $1, imports.gi.Clutter.KeyState.$state), 1" >/dev/null
-        sleep 0.2
     done
-    sleep 0.5
+    sleep 0.3
 }
 prefs_key() { # prefs_key <keysym>: back to the preferences window first (opening a window took the focus)
     ev "$(titled SnapTile)[0].activate(global.get_current_time()), 1" >/dev/null
-    sleep 0.5
+    sleep 0.3
     press_key "$1"
 }
 SPACE=0x20
@@ -858,7 +855,7 @@ stop_apps
 # kill, not delete: closing asks the window first, and Mutter's warning about that ping names
 # the window ("SnapTile"), which the shell log check below would take for an error of ours.
 ev "$(titled SnapTile).forEach(w => w.kill()), 1" >/dev/null
-sleep 1
+sleep 0.3
 check "the preferences window closes" 0 "$(titled SnapTile).length"
 reset_places
 
@@ -882,7 +879,6 @@ gsettings set org.gnome.desktop.interface enable-animations true
 echo "Two monitors (1280x720 with the top bar, 1024x768 to its right):"
 kill $SHELL_PID 2>/dev/null
 wait $SHELL_PID 2>/dev/null
-sleep 2
 SHELL_LOG_TWO=/tmp/smoke-shell-two.log
 start_shell "$SHELL_LOG_TWO" 1280x720 1024x768
 SHELL_LOGS+=("$SHELL_LOG_TWO")
@@ -920,7 +916,6 @@ stop_apps
 
 kill $SHELL_PID 2>/dev/null
 wait $SHELL_PID 2>/dev/null
-sleep 2
 SHELL_LOG_ONE=/tmp/smoke-shell-one.log
 start_shell "$SHELL_LOG_ONE" 1280x720
 SHELL_LOGS+=("$SHELL_LOG_ONE")
@@ -950,5 +945,8 @@ fi
 
 kill $SHELL_PID 2>/dev/null
 wait $SHELL_PID 2>/dev/null
+TOTAL=$(awk -v a="$(date +%s.%N)" -v b="$START" 'BEGIN { printf "%.0f", a - b }')
+echo "TIME: $TOTAL s for $CHECKS checks (budget: $CHECKS s)"
+if [ "$TOTAL" -gt "$CHECKS" ]; then FAILS=$((FAILS + 1)); echo "  FAIL  the run took longer than its budget"; fi
 if [ "$FAILS" -eq 0 ]; then echo "RESULT: all checks passed"; else echo "RESULT: $FAILS check(s) FAILED"; fi
 exit $((FAILS > 0))

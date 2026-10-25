@@ -30,3 +30,11 @@ Default five-label vocabulary (needs-triage, needs-info, ready-for-agent, ready-
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Smoke test time budget
+
+The smoke test (`tests/smoke/run.sh`, both GNOME versions in parallel) may take at most as many
+seconds as it has checks: 193 checks, 193 seconds. A new check adds one second at most; if the
+run gets slower than that, speed up other checks instead of raising the budget. The test checks
+this itself and prints how long each check took. Wait for a state (a window shown, a window
+gone) instead of a fixed pause wherever possible.
