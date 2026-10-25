@@ -10,9 +10,9 @@ FAILS=0
 START=$(date +%s.%N)
 LAST=$START
 CHECKS=0
-took() { local now; now=$(date +%s.%N); awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'; LAST=$now; }
-pass() { CHECKS=$((CHECKS + 1)); echo "  PASS  [$(took)s] $1"; }
-fail() { CHECKS=$((CHECKS + 1)); echo "  FAIL  [$(took)s] $1"; FAILS=$((FAILS + 1)); }
+took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
+pass() { took; CHECKS=$((CHECKS + 1)); echo "  PASS  [${TOOK}s] $1"; }
+fail() { took; CHECKS=$((CHECKS + 1)); echo "  FAIL  [${TOOK}s] $1"; FAILS=$((FAILS + 1)); }
 
 # ev <js expression>: runs it in the shell via the test helper, prints the JSON result.
 ev() {
