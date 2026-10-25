@@ -45,8 +45,15 @@ Status: accepted (2026-10-25). Builds on ADR 0007 ("Monitors") and refines ADR 0
 - Mutter's answer arrives asynchronously. A place saved before the first answer (or in the
   instant after the monitors changed) carries no id or the previous arrangement's id and is
   then placed by its absolute position. Not guarded.
+  Such a save also replaces an earlier entry that had a good monitor with one that has none
+  (found in the review of this ticket). Not guarded; a candidate for a follow-up ticket.
+- If the nearest monitor has no id while others do, no monitor is remembered for that save, and
+  the window is later placed by its absolute position.
 - The relative position is kept as a distance from the work area's top left. If the work area
   of that monitor changed size (a dock moved), the result is fitted back inside, so a window
   does not stay at the same distance from the bottom or right edge.
 - Moving the monitors around is covered by plain Node tests only; the smoke test covers two
   monitors and then one, with virtual monitors that have ids like real ones.
+- Verified on GNOME 50 and 51 (smoke test, 193 checks each). The smoke test's reload helper now
+  waits for each state, because on GNOME 51 an enable right after a disable was undone by the
+  shell; this was a problem of the test, not of the extension.
