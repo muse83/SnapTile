@@ -5,7 +5,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {appKeyOf, parsePlaces, placementFor, placementForSecondWindow, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
 
 /**
- * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011): remembers the place of an application's window when the
+ * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011, ADR 0012): remembers the place of an application's window when the
  * user finishes moving or resizing it, when it closes and when the extension is disabled, and
  * puts the next new window of that application there: the size and position of a free window,
  * the Tile of a tiled one (through the drag's own snap path), or maximised. A new window of an
@@ -18,14 +18,16 @@ import {appKeyOf, parsePlaces, placementFor, placementForSecondWindow, rememberO
  * is stored. The preferences window clears the memory by resetting "places"; the copy kept
  * here follows every change of the stored text, so a clear reaches windows that are open now.
  *
- * Not yet here: several monitors that change beyond "the nearest monitor takes it".
+ * A place is remembered with the monitor the window was on (by id, see MonitorSizes) and, for a
+ * free window, its position relative to that monitor (ADR 0012).
  */
 export class WindowMemory {
     /**
      * @param settings the extension's Gio.Settings
      * @param tiledWindows the shared TiledWindows
      * @param dragSnap the DragSnap, whose snap path puts a reopened window into its Tile
-     * @param monitorSizes the MonitorSizes, to turn 1 cm into pixels for a second window
+     * @param monitorSizes the MonitorSizes, to turn 1 cm into pixels for a second window and to
+     *   tell the monitors apart
      */
     constructor(settings, tiledWindows, dragSnap, monitorSizes) {
         this._settings = settings;
@@ -144,7 +146,7 @@ export class WindowMemory {
         if (!found)
             return;
         entry.savedAt = ++this._saves;
-        this._store(rememberWindow(this._places, found.key, found.state));
+        this._store(rememberWindow(this._places, found.key, found.state, this._monitors()));
     }
 
     /** A window closes: its place counts unless another window of the application saved later. */
@@ -156,7 +158,8 @@ export class WindowMemory {
         const others = [...this._windows]
             .filter(([other]) => other !== window && appKeyOf(factsOf(other)) === found.key)
             .map(([, otherEntry]) => otherEntry.savedAt);
-        this._store(rememberOnClose(this._places, found.key, found.state, entry.savedAt, others));
+        this._store(rememberOnClose(this._places, found.key, found.state, entry.savedAt, others,
+            this._monitors()));
     }
 
     /**
@@ -169,11 +172,12 @@ export class WindowMemory {
             const index = recentFirst.indexOf(window);
             return index === -1 ? recentFirst.length : index; // not in the list: oldest
         };
+        const monitors = this._monitors();
         let places = this._places;
         for (const window of [...this._windows.keys()].sort((a, b) => rank(b) - rank(a))) {
             const found = this._stateOf(window);
             if (found)
-                places = rememberWindow(places, found.key, found.state);
+                places = rememberWindow(places, found.key, found.state, monitors);
         }
         this._store(places);
     }
@@ -229,18 +233,27 @@ export class WindowMemory {
     }
 
     /**
+     * The monitors now: the id (undefined until Mutter has told it), the work area, and, as the
+     * Edge zones need them, the size in pixels and (if known) millimetres.
+     */
+    _monitors() {
+        return Main.layoutManager.monitors.map((monitor, index) => ({
+            id: this._monitorSizes.idOf(index),
+            width: monitor.width, height: monitor.height, ...this._monitorSizes.get(index),
+            workArea: plainRect(Main.layoutManager.getWorkAreaForMonitor(index)),
+        }));
+    }
+
+    /**
      * Where a new window of the application goes, or null to leave it to GNOME. The first
      * window gets the remembered place; a further one opens free and offset from the open
      * windows (ADR 0011). `siblings` are the application's other open windows, the most
      * recently used first.
      */
     _placementOf(window, key, siblings) {
-        const monitors = Main.layoutManager.monitors.map((monitor, index) => ({
-            width: monitor.width, height: monitor.height, ...this._monitorSizes.get(index),
-            workArea: plainRect(Main.layoutManager.getWorkAreaForMonitor(index)),
-        }));
+        const monitors = this._monitors();
         if (siblings.length === 0)
-            return placementFor(this._places, key, monitors.map(monitor => monitor.workArea));
+            return placementFor(this._places, key, monitors);
 
         const {width, height} = window.get_frame_rect();
         return placementForSecondWindow(this._places, key, {

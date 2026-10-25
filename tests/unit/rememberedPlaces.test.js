@@ -139,40 +139,41 @@ test('stored data with more than 200 applications is cut to the 200 most recent 
 
 // --- where a new window goes ---
 
-const rectFor = (places, key, workAreas) => placementFor(places, key, workAreas)?.rect ?? null;
+const monitorsOf = workAreas => workAreas.map(workArea => ({workArea}));
+const rectFor = (places, key, monitors) => placementFor(places, key, monitors)?.rect ?? null;
 
 test('an application with nothing remembered gets no place (it keeps its own)', () => {
-    assert.equal(placementFor({}, 'org.example.Editor', [WORK]), null);
-    assert.equal(placementFor({other: {frame: FRAME}}, 'org.example.Editor', [WORK]), null);
+    assert.equal(placementFor({}, 'org.example.Editor', monitorsOf([WORK])), null);
+    assert.equal(placementFor({other: {frame: FRAME}}, 'org.example.Editor', monitorsOf([WORK])), null);
 });
 
 test('a remembered free window goes to its frame', () => {
-    assert.deepEqual(placementFor({a: {frame: FRAME}}, 'a', [WORK]), {kind: 'free', rect: FRAME});
+    assert.deepEqual(placementFor({a: {frame: FRAME}}, 'a', monitorsOf([WORK])), {kind: 'free', rect: FRAME});
 });
 
 test('a frame reaching out of the work area is moved back inside', () => {
     const out = {x: 1500, y: 800, width: 800, height: 600};
-    assert.deepEqual(rectFor({a: {frame: out}}, 'a', [WORK]), {x: 1120, y: 480, width: 800, height: 600});
+    assert.deepEqual(rectFor({a: {frame: out}}, 'a', monitorsOf([WORK])), {x: 1120, y: 480, width: 800, height: 600});
     const above = {x: -50, y: 0, width: 800, height: 600};
-    assert.deepEqual(rectFor({a: {frame: above}}, 'a', [WORK]), {x: 0, y: 32, width: 800, height: 600});
+    assert.deepEqual(rectFor({a: {frame: above}}, 'a', monitorsOf([WORK])), {x: 0, y: 32, width: 800, height: 600});
 });
 
 test('a frame larger than the work area is shrunk to it', () => {
     const big = {x: 0, y: 0, width: 3000, height: 2000};
-    assert.deepEqual(rectFor({a: {frame: big}}, 'a', [WORK]), WORK);
+    assert.deepEqual(rectFor({a: {frame: big}}, 'a', monitorsOf([WORK])), WORK);
 });
 
 test('with several monitors the frame goes onto the work area nearest to its centre', () => {
     const second = {x: 1920, y: 0, width: 1280, height: 1024};
     const onSecond = {x: 2000, y: 100, width: 600, height: 400};
-    assert.deepEqual(rectFor({a: {frame: onSecond}}, 'a', [WORK, second]), onSecond);
+    assert.deepEqual(rectFor({a: {frame: onSecond}}, 'a', monitorsOf([WORK, second])), onSecond);
 
     const gone = {x: 5000, y: 300, width: 600, height: 400}; // right of everything
-    assert.deepEqual(rectFor({a: {frame: gone}}, 'a', [WORK, second]), {x: 2600, y: 300, width: 600, height: 400});
+    assert.deepEqual(rectFor({a: {frame: gone}}, 'a', monitorsOf([WORK, second])), {x: 2600, y: 300, width: 600, height: 400});
 });
 
 test('without any monitor the frame is returned unchanged', () => {
-    assert.deepEqual(rectFor({a: {frame: FRAME}}, 'a', []), FRAME);
+    assert.deepEqual(rectFor({a: {frame: FRAME}}, 'a', monitorsOf([])), FRAME);
 });
 
 // --- tiled and maximised windows: remembering ---
@@ -308,13 +309,13 @@ const SECOND = {x: 1920, y: 0, width: 1280, height: 1024};
 
 test('a remembered Tile goes to the same Tile of the work area, with the earlier size to give back', () => {
     const places = {a: {frame: LEFT_TILE, tile: 'left', sizeBefore: SIZE_BEFORE}};
-    assert.deepEqual(placementFor(places, 'a', [WORK]), {
+    assert.deepEqual(placementFor(places, 'a', monitorsOf([WORK])), {
         kind: 'tile', tile: 'left', rect: LEFT_TILE, workArea: WORK, sizeBefore: SIZE_BEFORE,
     });
 });
 
 test('a Tile without a known earlier size is placed without inventing one', () => {
-    const placement = placementFor({a: {frame: LEFT_TILE, tile: 'left'}}, 'a', [WORK]);
+    const placement = placementFor({a: {frame: LEFT_TILE, tile: 'left'}}, 'a', monitorsOf([WORK]));
     assert.equal(placement.kind, 'tile');
     assert.equal(placement.sizeBefore, null);
 });
@@ -322,20 +323,20 @@ test('a Tile without a known earlier size is placed without inventing one', () =
 test('a Tile on the second monitor stays on the second monitor', () => {
     const rightHalf = {x: 2560, y: 0, width: 640, height: 1024};
     const places = {a: {frame: rightHalf, tile: 'right'}};
-    assert.deepEqual(placementFor(places, 'a', [WORK, SECOND]), {
+    assert.deepEqual(placementFor(places, 'a', monitorsOf([WORK, SECOND])), {
         kind: 'tile', tile: 'right', rect: rightHalf, workArea: SECOND, sizeBefore: null,
     });
 });
 
 test('a Tile follows its monitor when the work area changed', () => {
     const smaller = {x: 0, y: 32, width: 1000, height: 600};
-    const placement = placementFor({a: {frame: LEFT_TILE, tile: 'left'}}, 'a', [smaller]);
+    const placement = placementFor({a: {frame: LEFT_TILE, tile: 'left'}}, 'a', monitorsOf([smaller]));
     assert.deepEqual(placement.rect, {x: 0, y: 32, width: 500, height: 600});
 });
 
 test('a Tile of a vanished monitor goes to the nearest remaining monitor', () => {
     const gone = {x: 3200, y: 0, width: 640, height: 1024}; // third monitor, now unplugged
-    const placement = placementFor({a: {frame: gone, tile: 'right'}}, 'a', [WORK, SECOND]);
+    const placement = placementFor({a: {frame: gone, tile: 'right'}}, 'a', monitorsOf([WORK, SECOND]));
     assert.equal(placement.kind, 'tile');
     assert.deepEqual(placement.workArea, SECOND);
     assert.deepEqual(placement.rect, {x: 2560, y: 0, width: 640, height: 1024});
@@ -345,24 +346,159 @@ test('every one of the 14 Tiles can be remembered and put back', () => {
     for (const tile of TILES) {
         const rect = tileRect(tile, WORK);
         const places = rememberWindow({}, 'a', {frame: rect, tile});
-        assert.deepEqual(placementFor(places, 'a', [WORK]).rect, rect, tile);
+        assert.deepEqual(placementFor(places, 'a', monitorsOf([WORK])).rect, rect, tile);
     }
 });
 
 test('a window maximised with the button comes back maximised on its monitor', () => {
-    assert.deepEqual(placementFor({a: {frame: WORK, maximized: true}}, 'a', [WORK]), {kind: 'maximized', monitor: 0});
-    assert.deepEqual(placementFor({a: {frame: SECOND, maximized: true}}, 'a', [WORK, SECOND]), {kind: 'maximized', monitor: 1});
+    assert.deepEqual(placementFor({a: {frame: WORK, maximized: true}}, 'a', monitorsOf([WORK])), {kind: 'maximized', monitor: 0});
+    assert.deepEqual(placementFor({a: {frame: SECOND, maximized: true}}, 'a', monitorsOf([WORK, SECOND])), {kind: 'maximized', monitor: 1});
 });
 
 test('a maximised window of a vanished monitor goes to the nearest remaining monitor', () => {
     const gone = {x: 5000, y: 0, width: 1280, height: 1024};
-    assert.deepEqual(placementFor({a: {frame: gone, maximized: true}}, 'a', [WORK, SECOND]), {kind: 'maximized', monitor: 1});
+    assert.deepEqual(placementFor({a: {frame: gone, maximized: true}}, 'a', monitorsOf([WORK, SECOND])), {kind: 'maximized', monitor: 1});
 });
 
 test('the whole-screen Tile is a Tile, not the maximised flag', () => {
-    const placement = placementFor({a: {frame: WORK, tile: 'full'}}, 'a', [WORK]);
+    const placement = placementFor({a: {frame: WORK, tile: 'full'}}, 'a', monitorsOf([WORK]));
     assert.equal(placement.kind, 'tile');
     assert.deepEqual(placement.rect, WORK);
+});
+
+// --- several monitors: the monitor is remembered and the position kept relative to it ---
+
+// A monitor as the shell glue describes it: the work area and an id that survives re-plugging
+// and rearranging (connector, vendor, product and serial, as Mutter itself tells monitors apart).
+const LEFT_MONITOR = {id: 'DP-1', workArea: WORK};
+const RIGHT_MONITOR = {id: 'HDMI-1', workArea: SECOND};
+const ON_RIGHT = {x: 2020, y: 100, width: 600, height: 400}; // 100 right and 100 down in SECOND
+
+test('a free window is remembered with its monitor and its position relative to that monitor', () => {
+    const places = rememberWindow({}, 'a', {frame: ON_RIGHT}, [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.deepEqual(places, {a: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 100, y: 100}}});
+});
+
+test('the monitor is the one whose work area is nearest to the centre of the frame', () => {
+    const onLeft = {x: 300, y: 200, width: 600, height: 400};
+    const places = rememberWindow({}, 'a', {frame: onLeft}, [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.deepEqual(places.a, {frame: onLeft, monitor: 'DP-1', offset: {x: 300, y: 168}});
+});
+
+test('a tiled or maximised window is remembered with its monitor but with no relative position', () => {
+    const tileRectOnRight = tileRect('left', SECOND);
+    const tiled = rememberWindow({}, 'a', {frame: tileRectOnRight, tile: 'left'}, [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.deepEqual(tiled.a, {frame: tileRectOnRight, tile: 'left', monitor: 'HDMI-1'});
+    const maximised = rememberWindow({}, 'a', {frame: SECOND, maximized: true}, [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.deepEqual(maximised.a, {frame: SECOND, maximized: true, monitor: 'HDMI-1'});
+});
+
+test('without monitors, or with monitors that have no id, no monitor is remembered', () => {
+    assert.deepEqual(rememberWindow({}, 'a', {frame: ON_RIGHT}), {a: {frame: ON_RIGHT}});
+    assert.deepEqual(rememberWindow({}, 'a', {frame: ON_RIGHT}, []), {a: {frame: ON_RIGHT}});
+    assert.deepEqual(rememberWindow({}, 'a', {frame: ON_RIGHT}, [{workArea: WORK}, {workArea: SECOND}]),
+        {a: {frame: ON_RIGHT}});
+});
+
+test('a window closing is remembered with its monitor too', () => {
+    const places = rememberOnClose({}, 'a', {frame: ON_RIGHT}, 0, [], [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.deepEqual(places.a.monitor, 'HDMI-1');
+});
+
+test('the monitor and the relative position survive being stored and read back', () => {
+    const places = rememberWindow({}, 'a', {frame: ON_RIGHT}, [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.deepEqual(parsePlaces(serialisePlaces(places)), places);
+});
+
+test('a corrupt monitor or relative position drops that entry and keeps the good ones', () => {
+    const good = {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 100, y: 100}};
+    const text = JSON.stringify({
+        good,
+        monitorNotText: {frame: ON_RIGHT, monitor: 5, offset: {x: 100, y: 100}},
+        monitorEmpty: {frame: ON_RIGHT, monitor: '', offset: {x: 100, y: 100}},
+        offsetTextual: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 'left', y: 100}},
+        offsetNotObject: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: 7},
+        offsetWithoutMonitor: {frame: ON_RIGHT, offset: {x: 100, y: 100}},
+    });
+    assert.deepEqual(parsePlaces(text), {good});
+});
+
+test('a window reopens on its monitor at the same place relative to it, also when the monitors moved', () => {
+    const places = {a: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 100, y: 100}}};
+    // The right monitor is now to the left of the other one, and 40 pixels lower.
+    const moved = {id: 'HDMI-1', workArea: {x: -1280, y: 40, width: 1280, height: 1024}};
+    const other = {id: 'DP-1', workArea: {x: 0, y: 32, width: 1920, height: 1048}};
+    assert.deepEqual(rectFor(places, 'a', [other, moved]), {x: -1180, y: 140, width: 600, height: 400});
+});
+
+test('the monitor wins over the old absolute position', () => {
+    // The two monitors swapped places: where the window used to be is now the other monitor.
+    const places = {a: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 100, y: 100}}};
+    const swappedRight = {id: 'HDMI-1', workArea: {x: 0, y: 0, width: 1280, height: 1024}};
+    const swappedLeft = {id: 'DP-1', workArea: {x: 1280, y: 32, width: 1920, height: 1048}};
+    assert.deepEqual(rectFor(places, 'a', [swappedRight, swappedLeft]), {x: 100, y: 100, width: 600, height: 400});
+});
+
+test('a vanished monitor lets the nearest monitor to the last absolute position take the window', () => {
+    const places = {a: {frame: {x: 3400, y: 300, width: 600, height: 400}, monitor: 'DP-3', offset: {x: 100, y: 300}}};
+    // Nearest to the old centre is the right monitor, so the old absolute position is kept as far
+    // as it fits there.
+    assert.deepEqual(rectFor(places, 'a', [LEFT_MONITOR, RIGHT_MONITOR]), {x: 2600, y: 300, width: 600, height: 400});
+    // The same laptop without its dock: only the built-in panel is left, the window is moved inside it.
+    assert.deepEqual(rectFor(places, 'a', [LEFT_MONITOR]), {x: 1320, y: 300, width: 600, height: 400});
+});
+
+test('a window without a stored monitor still goes by its absolute position', () => {
+    assert.deepEqual(rectFor({a: {frame: ON_RIGHT}}, 'a', [LEFT_MONITOR, RIGHT_MONITOR]), ON_RIGHT);
+});
+
+test('a monitor of the list without an id is never taken for the remembered one', () => {
+    const places = {a: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 100, y: 100}}};
+    // Nothing matches, so the absolute position decides: the second work area is nearest.
+    assert.deepEqual(rectFor(places, 'a', monitorsOf([WORK, SECOND])), ON_RIGHT);
+});
+
+test('a remembered size larger than the work area of its monitor is shrunk to it', () => {
+    const places = {a: {frame: {x: 2020, y: 100, width: 1600, height: 1200}, monitor: 'HDMI-1', offset: {x: 100, y: 100}}};
+    assert.deepEqual(rectFor(places, 'a', [LEFT_MONITOR, RIGHT_MONITOR]), SECOND);
+});
+
+test('a relative position that reaches out of a smaller monitor is moved back inside', () => {
+    const places = {a: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 100, y: 100}}};
+    const smaller = {id: 'HDMI-1', workArea: {x: 1920, y: 0, width: 640, height: 480}};
+    assert.deepEqual(rectFor(places, 'a', [LEFT_MONITOR, smaller]), {x: 1960, y: 80, width: 600, height: 400});
+});
+
+test('a Tile goes to the Tile of its own monitor, also when the monitors moved', () => {
+    const places = {a: {frame: tileRect('right', SECOND), tile: 'right', monitor: 'HDMI-1'}};
+    const moved = {id: 'HDMI-1', workArea: {x: -1280, y: 0, width: 1280, height: 1024}};
+    const placement = placementFor(places, 'a', [LEFT_MONITOR, moved]);
+    assert.equal(placement.kind, 'tile');
+    assert.deepEqual(placement.workArea, moved.workArea);
+    assert.deepEqual(placement.rect, {x: -640, y: 0, width: 640, height: 1024});
+});
+
+test('a Tile of a vanished monitor applies on the monitor nearest to its last position', () => {
+    const gone = {x: 3200, y: 0, width: 640, height: 1024};
+    const places = {a: {frame: gone, tile: 'right', monitor: 'DP-3'}};
+    const placement = placementFor(places, 'a', [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.equal(placement.kind, 'tile');
+    assert.deepEqual(placement.workArea, SECOND);
+    assert.deepEqual(placement.rect, {x: 2560, y: 0, width: 640, height: 1024});
+});
+
+test('a maximised window goes to its monitor, or to the nearest one when that is gone', () => {
+    const places = {a: {frame: SECOND, maximized: true, monitor: 'HDMI-1'}};
+    const swappedRight = {id: 'HDMI-1', workArea: {x: 0, y: 0, width: 1280, height: 1024}};
+    const swappedLeft = {id: 'DP-1', workArea: {x: 1280, y: 32, width: 1920, height: 1048}};
+    assert.deepEqual(placementFor(places, 'a', [swappedLeft, swappedRight]), {kind: 'maximized', monitor: 1});
+    const gone = {a: {frame: SECOND, maximized: true, monitor: 'DP-3'}};
+    assert.deepEqual(placementFor(gone, 'a', [LEFT_MONITOR, RIGHT_MONITOR]), {kind: 'maximized', monitor: 1});
+});
+
+test('with no monitors at all the frame is returned unchanged, whatever monitor was stored', () => {
+    const places = {a: {frame: ON_RIGHT, monitor: 'HDMI-1', offset: {x: 100, y: 100}}};
+    assert.deepEqual(placementFor(places, 'a', []), {kind: 'free', rect: ON_RIGHT});
 });
 
 // --- a second window of an application ---

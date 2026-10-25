@@ -11,6 +11,9 @@
 //   {frame, maximized: true, sizeBefore?}  a window maximised with the window button; the frame
 //                                        is the last position, as a fallback for the monitor
 // sizeBefore is {width, height}. An unknown free size is never invented: it is left out.
+// Each of them may also hold `monitor`, the id of the monitor the window was on (see ADR 0012),
+// and a free window `offset`, {x, y}: its position relative to that monitor's work area. Both
+// are left out when the monitor had no id; the frame is then all that tells the monitor.
 
 import {TILES, pixelsPerCm, tileRect} from './tileDecision.js';
 
@@ -49,8 +52,13 @@ function copySize({width, height}) {
     return {width, height};
 }
 
+function isOffset(value) {
+    return typeof value === 'object' && value !== null &&
+        Number.isFinite(value.x) && Number.isFinite(value.y);
+}
+
 /** The stored entry for a window state, a copy that shares nothing with the state. */
-function entryOf({frame, tile, maximized, sizeBefore}) {
+function entryOf({frame, tile, maximized, sizeBefore, monitor, offset}) {
     const entry = {frame: copyFrame(frame)};
     if (tile)
         entry.tile = tile;
@@ -58,6 +66,11 @@ function entryOf({frame, tile, maximized, sizeBefore}) {
         entry.maximized = true;
     if (sizeBefore)
         entry.sizeBefore = copySize(sizeBefore);
+    if (monitor) {
+        entry.monitor = monitor;
+        if (offset)
+            entry.offset = {x: offset.x, y: offset.y};
+    }
     return entry;
 }
 
@@ -71,7 +84,12 @@ function isEntry(entry) {
         return false;
     if ('tile' in entry && 'maximized' in entry)
         return false;
-    return !('sizeBefore' in entry) || isSize(entry.sizeBefore);
+    if ('sizeBefore' in entry && !isSize(entry.sizeBefore))
+        return false;
+    if ('monitor' in entry && (typeof entry.monitor !== 'string' || entry.monitor === ''))
+        return false;
+    // A relative position means nothing without the monitor it is relative to.
+    return !('offset' in entry) || ('monitor' in entry && isOffset(entry.offset));
 }
 
 /** Reads the stored text. Unreadable data gives nothing, corrupt entries are dropped. */
@@ -127,8 +145,11 @@ function freeSizeOf(entry) {
  *   rectangle as frame and the size from before tiling (null or left out if none is known); a
  *   maximised one the flag and its frame. A maximised window without a size of its own keeps
  *   the free size the application had before, so closing it maximised does not lose that size.
+ * @param {{id: ?string, workArea: object}[]} monitors the monitors now, to remember the one the
+ *   window is on (the one whose work area is nearest to the centre of its frame) by its id and,
+ *   for a free window, the position relative to it. A monitor without an id is not remembered.
  */
-export function rememberWindow(places, key, state) {
+export function rememberWindow(places, key, state, monitors = []) {
     if (!isFrame(state.frame))
         return places; // for example a window that closed before it was ever shown
     if (state.tile !== undefined && !TILES.includes(state.tile))
@@ -138,8 +159,21 @@ export function rememberWindow(places, key, state) {
         state.sizeBefore ?? freeSizeOf(places[key]) : state.sizeBefore;
     const result = {...places};
     delete result[key]; // re-insert, so the most recently used application stays last
-    result[key] = entryOf({...state, sizeBefore});
+    result[key] = entryOf({...state, sizeBefore, ...monitorOf(state, monitors)});
     return keepMostRecent(result);
+}
+
+/** The `monitor` and, for a free window, `offset` to remember for this state, or nothing. */
+function monitorOf({frame, tile, maximized}, monitors) {
+    const monitor = monitors[nearestMonitorIndex(monitors, frame)];
+    if (!monitor?.id)
+        return {};
+    if (tile || maximized)
+        return {monitor: monitor.id};
+    return {
+        monitor: monitor.id,
+        offset: {x: frame.x - monitor.workArea.x, y: frame.y - monitor.workArea.y},
+    };
 }
 
 /** The places after a free window of the application was last moved, resized or closed. */
@@ -155,11 +189,12 @@ export function rememberFree(places, key, frame) {
  * @param {number} closingSavedAt when the closing window last saved its place (0: never)
  * @param {number[]} otherSavedAts the same for the application's other open windows; later
  *   saves have higher numbers
+ * @param {object[]} monitors as for rememberWindow
  */
-export function rememberOnClose(places, key, state, closingSavedAt, otherSavedAts) {
+export function rememberOnClose(places, key, state, closingSavedAt, otherSavedAts, monitors = []) {
     if (otherSavedAts.some(savedAt => savedAt > closingSavedAt))
         return places;
-    return rememberWindow(places, key, state);
+    return rememberWindow(places, key, state, monitors);
 }
 
 /** The index of the work area nearest to the centre of the frame (0 without any work area). */
@@ -180,30 +215,38 @@ function nearestIndex(workAreas, frame) {
     return nearest;
 }
 
+/** The index of the monitor whose work area is nearest to the centre of the frame. */
+function nearestMonitorIndex(monitors, frame) {
+    return nearestIndex(monitors.map(monitor => monitor.workArea), frame);
+}
+
 /**
  * Where a new window of the application goes, or null when nothing is remembered (then the
- * application keeps its own size and place). The remembered frame tells the monitor: the work
- * area nearest to its centre is used, so a vanished monitor falls back to the nearest one.
- * @param {{x: number, y: number, width: number, height: number}[]} workAreas
+ * application keeps its own size and place). The monitor it was on takes it, found by its id
+ * and wherever it sits now; a free window keeps its position relative to that monitor. If that
+ * monitor is not there (or no id was remembered), the work area nearest to the centre of the
+ * remembered frame takes it, at the remembered absolute position.
+ * @param {{id: ?string, workArea: {x: number, y: number, width: number, height: number}}[]} monitors
  * @returns {null |
  *   {kind: 'free', rect: object} |
  *   {kind: 'tile', tile: string, rect: object, workArea: object, sizeBefore: ?object} |
  *   {kind: 'maximized', monitor: number}}
  *   free: the remembered frame, moved back inside and shrunk to fit the work area (without any
- *   work area it is returned as it is); tile: the Tile's rectangle in the work area, the work
+ *   monitor it is returned as it is); tile: the Tile's rectangle in the work area, the work
  *   area itself (for the anchoring rule) and the size to give back when the window is dragged
- *   out, null if none is known; maximized: the index of the monitor in `workAreas`
+ *   out, null if none is known; maximized: the index of the monitor in `monitors`
  */
-export function placementFor(places, key, workAreas) {
+export function placementFor(places, key, monitors) {
     const entry = places[key];
     if (!entry)
         return null;
     const frame = copyFrame(entry.frame);
-    if (workAreas.length === 0)
+    if (monitors.length === 0)
         return {kind: 'free', rect: frame};
 
-    const index = nearestIndex(workAreas, frame);
-    const area = workAreas[index];
+    const ownIndex = entry.monitor === undefined ? -1 : monitors.findIndex(m => m.id === entry.monitor);
+    const index = ownIndex !== -1 ? ownIndex : nearestMonitorIndex(monitors, frame);
+    const area = monitors[index].workArea;
     if (entry.maximized)
         return {kind: 'maximized', monitor: index};
     if (entry.tile) {
@@ -216,7 +259,10 @@ export function placementFor(places, key, workAreas) {
         };
     }
 
-    return {kind: 'free', rect: fitInto(frame, area)};
+    // On its own monitor a free window keeps its place relative to it, wherever the monitor sits now.
+    const wanted = ownIndex !== -1 && entry.offset ?
+        {...frame, x: area.x + entry.offset.x, y: area.y + entry.offset.y} : frame;
+    return {kind: 'free', rect: fitInto(wanted, area)};
 }
 
 /** The frame shrunk to the work area if it is larger, and moved back inside if it reaches out. */
@@ -249,7 +295,7 @@ function fitInto(frame, area) {
 export function placementForSecondWindow(places, key, {defaultSize, siblings, monitors}) {
     const open = siblings[0];
     const size = freeSizeOf(places[key]) ?? copySize(defaultSize);
-    const monitor = monitors[nearestIndex(monitors.map(m => m.workArea), open)] ?? {};
+    const monitor = monitors[nearestMonitorIndex(monitors, open)] ?? {};
     const step = Math.round(SECOND_WINDOW_OFFSET_CM * pixelsPerCm(monitor));
     const fit = frame => monitor.workArea ? fitInto(frame, monitor.workArea) : frame;
 

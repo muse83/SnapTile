@@ -17,7 +17,8 @@ windows reopen in their Tile or maximised" (spec: issue #8).
   monitor is gone, the nearest remaining one takes the Tile, which is the fallback ADR 0007
   asks for. A monitor number would change when monitors are plugged or unplugged. The ticket
   "Window memory with several monitors and a vanished monitor" may refine this; it does not
-  have to change what is stored.
+  have to change what is stored. Refined in ADR 0012: the monitor is now also stored by its id
+  and found by it; the rectangle described here stays the fallback when that monitor is gone.
 - **A Tile is read from the shared record, not from the window.** When the user drops a window
   into a Tile the window may not have its new frame yet. The record (ADR 0008) knows the Tile
   rectangle at once, so the drop is saved from there.

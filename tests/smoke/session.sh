@@ -507,7 +507,10 @@ echo "Window memory (free windows):"
 # application, so the same id on a second start is "the same application". The extension keeps a
 # copy of the stored places, so a test that changes them behind its back reloads the extension.
 gsettings set org.gnome.desktop.interface enable-animations false
-reload_extension() { ev "$DISABLE" >/dev/null; ev "$ENABLE" >/dev/null; }
+# On GNOME 51 an enable right after a disable can be undone by the shell, which acts on the
+# earlier change of its list of enabled extensions late. So each step waits for its result.
+await_state() { for _ in $(seq 25); do [ "$(ev "$STATE")" = "$1" ] && return; sleep 0.2; done; } # await_state <state>: at most 5 s
+reload_extension() { ev "$DISABLE" >/dev/null; await_state $INACTIVE; ev "$ENABLE" >/dev/null; await_state $ACTIVE; }
 reload_extension
 MEM='Main.extensionManager.lookup("'"$UUID"'").stateObj.getSettings()'
 PLACES="Object.entries(JSON.parse($MEM.get_string('places'))).map(([key, entry]) => key + '=' + Object.values(entry.frame)).join(';')"
@@ -895,6 +898,48 @@ snap "second monitor, last third" 2100 764 1963,0,341,768
 snap "second monitor, top-left quarter" 1283 3 1280,0,512,384
 
 kill $WINDOW_PID 2>/dev/null
+
+echo "Window memory with two monitors, then with the second one gone:"
+# A virtual monitor has an id like a real one (connector, vendor, product, serial). The window
+# memory keeps the monitor by that id and the position relative to it.
+gsettings set org.gnome.desktop.interface enable-animations false
+SECOND_ID='Meta-1|MetaVendor|MetaVirtualMonitor|0x01'
+MONITOR_OF="(e => e.monitor + '@' + Object.values(e.offset ?? {}))(JSON.parse($MEM.get_string('places'))['org.snaptile.MemA'])"
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+place_window mem-a 1380 100 500 400
+close_window mem-a
+check "closing a window on the second monitor remembers that monitor and the place on it" "\"$SECOND_ID@100,100\"" "$MONITOR_OF"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "the application's next window reopens on the second monitor" '"[1380,100,500,400]"' "$(frame_of mem-a)"
+stop_apps
+set_places '{"org.snaptile.MemA": {frame: {x: 1280, y: 0, width: 512, height: 768}, tile: "left", monitor: "'"$SECOND_ID"'"}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "a Tile of the second monitor reopens in that Tile of the second monitor" '"[1280,0,512,768]"' "$(frame_of mem-a)"
+stop_apps
+
+kill $SHELL_PID 2>/dev/null
+wait $SHELL_PID 2>/dev/null
+sleep 2
+SHELL_LOG_ONE=/tmp/smoke-shell-one.log
+start_shell "$SHELL_LOG_ONE" 1280x720
+SHELL_LOGS+=("$SHELL_LOG_ONE")
+ev "$ENABLE" >/dev/null
+check "the shell sees only the first monitor now" '"[[0,0,1280,720]]"' \
+    'JSON.stringify(Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]))'
+set_places '{"org.snaptile.MemA": {frame: {x: 1380, y: 100, width: 500, height: 400}, monitor: "'"$SECOND_ID"'", offset: {x: 100, y: 100}}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "with the second monitor gone, the window opens on the remaining one, inside its work area" '"[780,100,500,400]"' "$(frame_of mem-a)"
+stop_apps
+set_places '{"org.snaptile.MemA": {frame: {x: 1300, y: 10, width: 1600, height: 900}, monitor: "'"$SECOND_ID"'", offset: {x: 20, y: 10}}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "a remembered size larger than the remaining work area is shrunk to it" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+stop_apps
+set_places '{"org.snaptile.MemA": {frame: {x: 1280, y: 0, width: 512, height: 768}, tile: "left", monitor: "'"$SECOND_ID"'"}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+check "a Tile of the vanished monitor applies on the remaining monitor" '"[0,32,640,688]"' "$(frame_of mem-a)"
+stop_apps
+gsettings set org.gnome.desktop.interface enable-animations true
 
 echo "Shell log:"
 if grep -iE "snaptile|JS ERROR" "${SHELL_LOGS[@]}"; then
