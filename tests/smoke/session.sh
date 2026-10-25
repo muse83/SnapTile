@@ -5,14 +5,15 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Time budget: the whole run may take as many seconds as it has checks (193 checks: 193 s), so a
-# new check adds one second at most. Every check prints how long it took since the one before.
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 193 now, one more for every new
+# check. The run fails when it takes longer. A single check has no limit of its own; each one
+# prints how long it took since the check before it, so slow spots can be found and sped up.
+MAX_RUNTIME=193
 START=$(date +%s.%N)
 LAST=$START
-CHECKS=0
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
-pass() { took; CHECKS=$((CHECKS + 1)); echo "  PASS  [${TOOK}s] $1"; }
-fail() { took; CHECKS=$((CHECKS + 1)); echo "  FAIL  [${TOOK}s] $1"; FAILS=$((FAILS + 1)); }
+pass() { took; echo "  PASS  [${TOOK}s] $1"; }
+fail() { took; echo "  FAIL  [${TOOK}s] $1"; FAILS=$((FAILS + 1)); }
 
 # ev <js expression>: runs it in the shell via the test helper, prints the JSON result.
 ev() {
@@ -501,7 +502,13 @@ gsettings set org.gnome.desktop.interface enable-animations false
 # On GNOME 51 an enable right after a disable can be undone by the shell, which acts on the
 # earlier change of its list of enabled extensions late. So each step waits for its result.
 await_state() { for _ in $(seq 25); do [ "$(ev "$STATE")" = "$1" ] && return; sleep 0.2; done; } # await_state <state>: at most 5 s
-reload_extension() { ev "$DISABLE" >/dev/null; await_state $INACTIVE; ev "$ENABLE" >/dev/null; await_state $ACTIVE; }
+reload_extension() { # the shell may undo an enable a moment after it was seen, so look again and retry
+    for _ in 1 2 3; do
+        ev "$DISABLE" >/dev/null; await_state $INACTIVE; ev "$ENABLE" >/dev/null; await_state $ACTIVE
+        sleep 0.3
+        [ "$(ev "$STATE")" = "$ACTIVE" ] && return
+    done
+}
 reload_extension
 MEM='Main.extensionManager.lookup("'"$UUID"'").stateObj.getSettings()'
 PLACES="Object.entries(JSON.parse($MEM.get_string('places'))).map(([key, entry]) => key + '=' + Object.values(entry.frame)).join(';')"
@@ -946,7 +953,7 @@ fi
 kill $SHELL_PID 2>/dev/null
 wait $SHELL_PID 2>/dev/null
 TOTAL=$(awk -v a="$(date +%s.%N)" -v b="$START" 'BEGIN { printf "%.0f", a - b }')
-echo "TIME: $TOTAL s for $CHECKS checks (budget: $CHECKS s)"
-if [ "$TOTAL" -gt "$CHECKS" ]; then FAILS=$((FAILS + 1)); echo "  FAIL  the run took longer than its budget"; fi
+echo "TIME: $TOTAL s of at most $MAX_RUNTIME s"
+if [ "$TOTAL" -gt "$MAX_RUNTIME" ]; then FAILS=$((FAILS + 1)); echo "  FAIL  the run took longer than its maximum of $MAX_RUNTIME s"; fi
 if [ "$FAILS" -eq 0 ]; then echo "RESULT: all checks passed"; else echo "RESULT: $FAILS check(s) FAILED"; fi
 exit $((FAILS > 0))

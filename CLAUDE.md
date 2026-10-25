@@ -31,10 +31,12 @@ Default five-label vocabulary (needs-triage, needs-info, ready-for-agent, ready-
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
-## Smoke test time budget
+## Smoke test maximum runtime
 
-The smoke test (`tests/smoke/run.sh`, both GNOME versions in parallel) may take at most as many
-seconds as it has checks: 193 checks, 193 seconds. A new check adds one second at most; if the
-run gets slower than that, speed up other checks instead of raising the budget. The test checks
-this itself and prints how long each check took. Wait for a state (a window shown, a window
-gone) instead of a fixed pause wherever possible.
+The whole smoke test (`tests/smoke/run.sh`, both GNOME versions in parallel) may take at most
+`MAX_RUNTIME` seconds, set at the top of `tests/smoke/session.sh`: 193 seconds now. The run fails
+when it takes longer. **A single check has no time limit of its own**; a check may take longer
+than one second. Every new check raises `MAX_RUNTIME` by one second and by no more; if the run
+is still too slow, speed up other checks, never raise the maximum further. Each check prints how
+long it took since the one before it, to find the slow ones. Wait for a state (a window shown, a
+window gone) instead of a fixed pause wherever possible.
