@@ -31,21 +31,22 @@ check() { # check <description> <expected> <js expression>
     if [ "$got" = "$2" ]; then pass "$1"; else fail "$1 (expected $2, got $got)"; fi
 }
 
-await_settled() { # await_settled <title>: until the window is shown and its frame stayed the same for four reads (at most 8 s)
+await_settled() { # await_settled <title>: until the window is shown and its frame stayed the same for three reads (at most 8 s)
     local js previous="" same=0 now
     js="JSON.stringify(global.get_window_actors().filter(a => a.mapped && a.meta_window.title === '$1').map(a => { const r = a.meta_window.get_frame_rect(); return [r.x, r.y, r.width, r.height]; }))"
-    for _ in $(seq 40); do
+    for _ in $(seq 80); do
         now=$(ev "$js")
         if [ "$now" != '"[]"' ] && [ "$now" = "$previous" ]; then
             same=$((same + 1))
-            [ $same -ge 3 ] && return
+            [ $same -ge 2 ] && return
         else
             same=0
         fi
         previous=$now
-        sleep 0.2
+        sleep 0.1
     done
 }
+await_state() { for _ in $(seq 25); do [ "$(ev "$STATE")" = "$1" ] && return; sleep 0.2; done; } # await_state <state>: at most 5 s
 gsettings set org.gnome.shell enabled-extensions "['helper@snaptile.test']"
 gsettings set org.gnome.shell disable-user-extensions false
 
@@ -55,9 +56,9 @@ start_shell() { # start_shell <log file> <virtual monitor size>...
     for size in "$@"; do args+=(--virtual-monitor "$size"); done
     gnome-shell --headless --wayland --no-x11 "${args[@]}" >"$log" 2>&1 &
     SHELL_PID=$!
-    for _ in $(seq 40); do
+    for _ in $(seq 100); do
         ev 1 >/dev/null 2>&1 && break
-        sleep 0.5
+        sleep 0.2
     done
 }
 
@@ -77,6 +78,7 @@ INACTIVE=2 # ExtensionState.INACTIVE
 echo "Edge tiling ON:"
 gsettings set org.gnome.mutter edge-tiling true
 ev "$ENABLE" >/dev/null
+await_state $ACTIVE
 check "extension is active" $ACTIVE "$STATE"
 check "one hint source appears" 1 "$SOURCES"
 check "hint names the setting" '"Switch off GNOME edge tiling"' "$NOTE"
@@ -501,7 +503,6 @@ echo "Window memory (free windows):"
 gsettings set org.gnome.desktop.interface enable-animations false
 # On GNOME 51 an enable right after a disable can be undone by the shell, which acts on the
 # earlier change of its list of enabled extensions late. So each step waits for its result.
-await_state() { for _ in $(seq 25); do [ "$(ev "$STATE")" = "$1" ] && return; sleep 0.2; done; } # await_state <state>: at most 5 s
 reload_extension() { # the shell may undo an enable a moment after it was seen, so look again and retry
     for _ in 1 2 3; do
         ev "$DISABLE" >/dev/null; await_state $INACTIVE; ev "$ENABLE" >/dev/null; await_state $ACTIVE
