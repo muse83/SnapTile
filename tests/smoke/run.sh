@@ -1,5 +1,6 @@
 #!/bin/bash
 # Smoke test on GNOME 50 and 51. Run from the host: tests/smoke/run.sh [gnome50|gnome51]
+# SMOKE_ZIP=dist/snaptile@muse83.shell-extension.zip tests/smoke/run.sh tests the release zip.
 # The versions run at the same time, each in its own container; their output is printed one
 # after the other when both are done.
 cd "$(dirname "$0")/../.." || exit 1
@@ -9,7 +10,7 @@ docker compose up -d "${services[@]}" >/dev/null 2>&1
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 for s in "${services[@]}"; do
-    docker compose exec -T -u dev "$s" bash /workspace/tests/smoke/in-container.sh >"$out/$s" 2>&1 &
+    docker compose exec -T -u dev -e SMOKE_ZIP "$s" bash /workspace/tests/smoke/in-container.sh >"$out/$s" 2>&1 &
 done
 status=0
 for s in "${services[@]}"; do
