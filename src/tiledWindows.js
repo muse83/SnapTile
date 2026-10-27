@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 muse83
+
 // Which Tile each window SnapTile has tiled sits in, the rectangle of that Tile on its monitor
 // (which tells the monitor), and the size it had before tiling (so dragging it out of the Tile
 // can restore it). Pure logic, no GNOME imports. The one place

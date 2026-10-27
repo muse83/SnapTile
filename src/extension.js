@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 muse83
+
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {DragSnap} from './dragSnap.js';
 import {EdgeTilingHint} from './edgeTilingHint.js';

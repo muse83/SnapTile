@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 muse83
+
 // Decides which Tile a window drag selects. Pure logic, no GNOME imports, so it runs under
 // plain Node tests. Every monitor has all its zones on its own, also on edges shared with
 // another monitor. The shell glue feeds in raw pointer and monitor data and gets back the

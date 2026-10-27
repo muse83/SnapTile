@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 muse83
+
 // The decisions of the window memory (see ADR 0007). Pure logic, no GNOME imports, so it runs
 // under plain Node tests. Adapted from the decision part of the reference window memory
 // (reference/window-memory/src/frameMemory.ts), cut down to free, tiled and maximised windows.
