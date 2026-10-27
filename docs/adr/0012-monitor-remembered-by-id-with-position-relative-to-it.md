@@ -94,6 +94,9 @@ from storing a wrong monitor or from throwing a right one away.
   does not stay at the same distance from the bottom or right edge.
 - Moving the monitors around is covered by plain Node tests only; the smoke test covers two
   monitors and then one, with virtual monitors that have ids like real ones.
+- The smoke test cannot restart the monitors or plug them in a headless shell. Its three checks
+  for saves without names ask Mutter and save in one step, and clear the names by hand. Not
+  covered by any test: the clear button dropping held saves, and switch-off carrying them out.
 - Verified on GNOME 50 and 51 (smoke test, 193 checks each). The smoke test's reload helper now
   waits for each state, because on GNOME 51 an enable right after a disable was undone by the
   shell; this was a problem of the test, not of the extension. The follow-up ticket adds three
