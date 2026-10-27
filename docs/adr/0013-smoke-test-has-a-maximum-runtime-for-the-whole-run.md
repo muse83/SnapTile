@@ -6,7 +6,7 @@ ADR 0002 and extended by every ticket since.
 ## Decisions
 
 - **The whole run has a maximum runtime**, set as `MAX_RUNTIME` at the top of
-  `tests/smoke/session.sh`: 193 seconds now, for 193 checks. The run fails when it takes longer.
+  `tests/smoke/session.sh`: 196 seconds now, for 196 checks. The run fails when it takes longer.
   Every new check raises the maximum by one second and by no more. If the run is still too
   slow, other checks are sped up; the maximum is never raised further.
 - **A single check has no limit of its own.** A check may take longer than a second. Each check

@@ -147,7 +147,10 @@ function freeSizeOf(entry) {
  *   the free size the application had before, so closing it maximised does not lose that size.
  * @param {{id: ?string, workArea: object}[]} monitors the monitors now, to remember the one the
  *   window is on (the one whose work area is nearest to the centre of its frame) by its id and,
- *   for a free window, the position relative to it. A monitor without an id is not remembered.
+ *   for a free window, the position relative to it. A monitor without an id cannot be
+ *   remembered: then the monitor the application had before is kept if the window is still on
+ *   it (the old and the new frame are nearest to the same work area, or no monitor is given at
+ *   all), else none is stored.
  */
 export function rememberWindow(places, key, state, monitors = []) {
     if (!isFrame(state.frame))
@@ -159,21 +162,38 @@ export function rememberWindow(places, key, state, monitors = []) {
         state.sizeBefore ?? freeSizeOf(places[key]) : state.sizeBefore;
     const result = {...places};
     delete result[key]; // re-insert, so the most recently used application stays last
-    result[key] = entryOf({...state, sizeBefore, ...monitorOf(state, monitors)});
+    result[key] = entryOf({...state, sizeBefore, ...monitorOf(state, monitors, places[key])});
     return keepMostRecent(result);
 }
 
-/** The `monitor` and, for a free window, `offset` to remember for this state, or nothing. */
-function monitorOf({frame, tile, maximized}, monitors) {
-    const monitor = monitors[nearestMonitorIndex(monitors, frame)];
-    if (!monitor?.id)
+/**
+ * The `monitor` and, for a free window, `offset` to remember for this state, or nothing. A save
+ * that cannot name the monitor (the nearest one has no id) keeps the one the application had
+ * before, if the window is still on it (ADR 0012).
+ */
+function monitorOf({frame, tile, maximized}, monitors, previous) {
+    const index = nearestMonitorIndex(monitors, frame);
+    const monitor = monitors[index];
+    const free = !tile && !maximized;
+    const remembered = (id, area) => ({
+        monitor: id,
+        ...(free && area ? {offset: {x: frame.x - area.x, y: frame.y - area.y}} : {}),
+    });
+
+    if (monitor?.id)
+        return remembered(monitor.id, monitor.workArea);
+    if (!previous?.monitor)
         return {};
-    if (tile || maximized)
-        return {monitor: monitor.id};
-    return {
-        monitor: monitor.id,
-        offset: {x: frame.x - monitor.workArea.x, y: frame.y - monitor.workArea.y},
-    };
+    // Nothing tells the monitors apart, so nothing says the window left its monitor either.
+    if (monitors.length === 0)
+        return remembered(previous.monitor);
+    // That monitor is known by name and the window is on another one.
+    if (monitors.some(other => other.id === previous.monitor))
+        return {};
+    // Names are missing: the window is still on its monitor when the old frame and the new frame
+    // are nearest to the same work area of the monitors as they are now.
+    return nearestMonitorIndex(monitors, previous.frame) === index ?
+        remembered(previous.monitor, monitor.workArea) : {};
 }
 
 /** The places after a free window of the application was last moved, resized or closed. */

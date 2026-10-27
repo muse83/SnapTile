@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 193 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 196 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=193
+MAX_RUNTIME=196
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -916,6 +916,19 @@ close_window mem-a
 check "closing a window on the second monitor remembers that monitor and the place on it" "\"$SECOND_ID@100,100\"" "$MONITOR_OF"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 check "the application's next window reopens on the second monitor" '"[1380,100,500,400]"' "$(frame_of mem-a)"
+# A save while Mutter has not told the monitors' names (after a start, after a change of the
+# monitors) must not store a wrong monitor or throw the remembered one away. The first check asks
+# Mutter and saves in the same step, so its answer cannot have arrived yet.
+OBJ='Main.extensionManager.lookup("'"$UUID"'").stateObj'
+place_window mem-a 1400 150 500 400
+check "a save made before Mutter has answered waits and stores nothing yet" "\"$SECOND_ID@100,100\"" \
+    "($OBJ._monitorSizes.refresh(), $OBJ._windowMemory._saveAfterGrab($(titled mem-a)[0]), $MONITOR_OF)"
+await_true "$MONITOR_OF === '$SECOND_ID@120,150'"
+check "once Mutter has answered, the waiting save stores the monitor and the place on it" "\"$SECOND_ID@120,150\"" "$MONITOR_OF"
+place_window mem-a 1420 170 500 400
+ev "$OBJ._monitorSizes._idByPosition.clear(), 1" >/dev/null # the names are not known
+close_window mem-a
+check "a save that cannot name the monitor keeps the monitor remembered before" "\"$SECOND_ID@140,170\"" "$MONITOR_OF"
 stop_apps
 set_places '{"org.snaptile.MemA": {frame: {x: 1280, y: 0, width: 512, height: 768}, tile: "left", monitor: "'"$SECOND_ID"'"}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA

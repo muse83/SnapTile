@@ -400,6 +400,61 @@ test('without monitors, or with monitors that have no id, no monitor is remember
         {a: {frame: ON_RIGHT}});
 });
 
+// A monitor the shell could not name yet (Mutter has not answered): only its work area is known.
+const UNNAMED = [{workArea: WORK}, {workArea: SECOND}];
+const REMEMBERED_ON_RIGHT = rememberWindow({}, 'a', {frame: ON_RIGHT}, [LEFT_MONITOR, RIGHT_MONITOR]);
+const MOVED_ON_RIGHT = {x: 2100, y: 150, width: 600, height: 400};
+
+test('a save that cannot name the monitor keeps the monitor remembered before, with the new relative position', () => {
+    const places = rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: MOVED_ON_RIGHT}, UNNAMED);
+    assert.deepEqual(places.a, {frame: MOVED_ON_RIGHT, monitor: 'HDMI-1', offset: {x: 180, y: 150}});
+});
+
+test('a save that can name the monitor replaces the one remembered before', () => {
+    const onLeft = {x: 300, y: 200, width: 600, height: 400};
+    const places = rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: onLeft}, [LEFT_MONITOR, RIGHT_MONITOR]);
+    assert.deepEqual(places.a, {frame: onLeft, monitor: 'DP-1', offset: {x: 300, y: 168}});
+});
+
+test('a save that cannot name the monitor stores none for an application that never had one', () => {
+    const before = {a: {frame: FRAME}};
+    assert.deepEqual(rememberWindow(before, 'a', {frame: MOVED_ON_RIGHT}, UNNAMED).a, {frame: MOVED_ON_RIGHT});
+    assert.deepEqual(rememberWindow(before, 'b', {frame: MOVED_ON_RIGHT}, UNNAMED).b, {frame: MOVED_ON_RIGHT});
+});
+
+test('a window that clearly moved to another monitor is not left with the old one', () => {
+    const onLeft = {x: 300, y: 200, width: 600, height: 400};
+    assert.deepEqual(rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: onLeft}, UNNAMED).a, {frame: onLeft});
+});
+
+test('a monitor of the list that is known and is not the one nearest is never kept for a window on an unnamed one', () => {
+    const monitors = [LEFT_MONITOR, {workArea: SECOND}]; // the right monitor has no id (yet)
+    const onRight = rememberWindow({a: {frame: ON_RIGHT, monitor: 'DP-1', offset: {x: 5, y: 5}}}, 'a',
+        {frame: MOVED_ON_RIGHT}, monitors);
+    assert.deepEqual(onRight.a, {frame: MOVED_ON_RIGHT});
+});
+
+test('a tiled or maximised window that cannot name its monitor keeps the one remembered before, with no relative position', () => {
+    const tileOnRight = tileRect('left', SECOND);
+    const tiled = rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: tileOnRight, tile: 'left'}, UNNAMED);
+    assert.deepEqual(tiled.a, {frame: tileOnRight, tile: 'left', monitor: 'HDMI-1'});
+    const maximised = rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: SECOND, maximized: true}, UNNAMED);
+    // The free size from before stays, as for any maximised window.
+    assert.deepEqual(maximised.a, {frame: SECOND, maximized: true, sizeBefore: {width: 600, height: 400}, monitor: 'HDMI-1'});
+});
+
+test('with no monitor information at all the monitor remembered before is kept, without a relative position', () => {
+    for (const monitors of [undefined, []]) {
+        const places = rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: MOVED_ON_RIGHT}, monitors);
+        assert.deepEqual(places.a, {frame: MOVED_ON_RIGHT, monitor: 'HDMI-1'});
+    }
+});
+
+test('a window closing without a monitor name keeps the monitor remembered before', () => {
+    const places = rememberOnClose(REMEMBERED_ON_RIGHT, 'a', {frame: MOVED_ON_RIGHT}, 0, [], UNNAMED);
+    assert.deepEqual(places.a, {frame: MOVED_ON_RIGHT, monitor: 'HDMI-1', offset: {x: 180, y: 150}});
+});
+
 test('a window closing is remembered with its monitor too', () => {
     const places = rememberOnClose({}, 'a', {frame: ON_RIGHT}, 0, [], [LEFT_MONITOR, RIGHT_MONITOR]);
     assert.deepEqual(places.a.monitor, 'HDMI-1');

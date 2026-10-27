@@ -14,11 +14,15 @@ const ROTATED_TRANSFORMS = [1, 3, 5, 7];
  *
  * The same answer names each monitor (connector, vendor, product and serial, as Mutter tells
  * monitors apart in its own configuration), which the window memory uses to find a monitor
- * again after the monitors were rearranged.
+ * again after the monitors were rearranged. Until Mutter has answered, after the start and after
+ * every change of the monitors, the names are not known: the answer before describes the
+ * arrangement before, so it is not given out (ADR 0012).
  */
 export class MonitorSizes {
     constructor() {
         this._listeners = [];
+        this._settledListeners = [];
+        this._pending = 0; // questions asked of Mutter that are not answered yet
         this._monitorsChangedId = 0;
         this._cancellable = new Gio.Cancellable();
         this._byPosition = new Map();
@@ -37,17 +41,39 @@ export class MonitorSizes {
         this._listeners.push(callback);
     }
 
+    /**
+     * `callback` is called each time every question asked of Mutter has been answered, also
+     * when an answer failed (then the names stay unknown), so it can go on with what waited.
+     */
+    whenSettled(callback) {
+        this._settledListeners.push(callback);
+    }
+
+    /** Whether the names of the monitors are known: Mutter has answered all questions asked. */
+    isSettled() {
+        return this._pending === 0;
+    }
+
     /** Asks Mutter again. */
     refresh() {
+        this._pending++;
         Gio.DBus.session.call(BUS_NAME, OBJECT_PATH, BUS_NAME, 'GetCurrentState',
             null, null, Gio.DBusCallFlags.NONE, -1, this._cancellable, (connection, result) => {
+                let answered = false;
                 try {
                     this._store(connection.call_finish(result).recursiveUnpack());
-                    this._listeners.forEach(callback => callback());
+                    answered = true;
                 } catch (e) {
-                    if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
-                        console.warn(`SnapTile: could not read monitor sizes: ${e.message}`);
+                    if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+                        return; // destroy() ran: nothing waits for this answer any more
+                    console.warn(`SnapTile: could not read monitor sizes: ${e.message}`);
+                    this._idByPosition.clear(); // what we hold describes an arrangement of before
                 }
+                this._pending--;
+                if (answered)
+                    this._listeners.forEach(callback => callback());
+                if (this._pending === 0)
+                    this._settledListeners.forEach(callback => callback());
             });
     }
 
@@ -59,6 +85,8 @@ export class MonitorSizes {
 
     /** The id of the monitor at this index of the layout manager, or undefined if not known (yet). */
     idOf(monitorIndex) {
+        if (!this.isSettled())
+            return undefined; // the answer we hold is for the arrangement before
         const monitor = Main.layoutManager.monitors[monitorIndex];
         return monitor ? this._idByPosition.get(`${monitor.x},${monitor.y}`) : undefined;
     }
@@ -68,6 +96,7 @@ export class MonitorSizes {
             Main.layoutManager.disconnect(this._monitorsChangedId);
         this._monitorsChangedId = 0;
         this._listeners = [];
+        this._settledListeners = [];
         this._cancellable.cancel();
         this._byPosition.clear();
         this._idByPosition.clear();

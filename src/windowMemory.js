@@ -19,7 +19,10 @@ import {appKeyOf, parsePlaces, placementFor, placementForSecondWindow, rememberO
  * here follows every change of the stored text, so a clear reaches windows that are open now.
  *
  * A place is remembered with the monitor the window was on (by id, see MonitorSizes) and, for a
- * free window, its position relative to that monitor (ADR 0012).
+ * free window, its position relative to that monitor (ADR 0012). While Mutter has not told the
+ * monitors' names (after the start, after the monitors changed) a save waits for the answer, so
+ * the monitor it stores is the right one; what is still waiting when the extension is disabled
+ * is saved without names, which keeps the monitor remembered before (rememberWindow).
  */
 export class WindowMemory {
     /**
@@ -43,6 +46,8 @@ export class WindowMemory {
         // which of an application's windows saved last.
         this._windows = new Map();
         this._saves = 0;
+        // Saves that wait for the monitors' names, in order: functions that store the place.
+        this._waiting = [];
     }
 
     /** Call from the extension's enable(). Windows that are open now are never moved. */
@@ -51,6 +56,8 @@ export class WindowMemory {
 
         for (const actor of global.get_window_actors())
             this._watch(actor.meta_window, false);
+
+        this._monitorSizes.whenSettled(() => this._runWaiting());
 
         this._signals.push(
             [this._settings, this._settings.connect('changed::places',
@@ -66,10 +73,13 @@ export class WindowMemory {
     /** Call from the extension's disable(). Saves every open window first (if switched on). */
     destroy() {
         try {
-            if (this._isMemoryOn())
+            if (this._isMemoryOn()) {
+                this._runWaiting();
                 this._saveOpenWindows();
+            }
             Gio.Settings.sync(); // the session may end right after disable, so write it out now
         } finally {
+            this._waiting = [];
             for (const [object, id] of this._signals)
                 object.disconnect(id);
             this._signals = [];
@@ -96,6 +106,7 @@ export class WindowMemory {
         if (text === serialisePlaces(this._places))
             return;
         this._places = parsePlaces(text);
+        this._waiting = []; // they would bring back what was cleared or replaced
         // What the open windows saved is gone or replaced, so none of them has a later save
         // that its siblings must respect when they close.
         for (const entry of this._windows.values())
@@ -146,7 +157,8 @@ export class WindowMemory {
         if (!found)
             return;
         entry.savedAt = ++this._saves;
-        this._store(rememberWindow(this._places, found.key, found.state, this._monitors()));
+        this._whenMonitorsKnown(() =>
+            this._store(rememberWindow(this._places, found.key, found.state, this._monitors())));
     }
 
     /** A window closes: its place counts unless another window of the application saved later. */
@@ -158,8 +170,28 @@ export class WindowMemory {
         const others = [...this._windows]
             .filter(([other]) => other !== window && appKeyOf(factsOf(other)) === found.key)
             .map(([, otherEntry]) => otherEntry.savedAt);
-        this._store(rememberOnClose(this._places, found.key, found.state, entry.savedAt, others,
-            this._monitors()));
+        const closingSavedAt = entry.savedAt;
+        this._whenMonitorsKnown(() =>
+            this._store(rememberOnClose(this._places, found.key, found.state, closingSavedAt, others,
+                this._monitors())));
+    }
+
+    /** Runs the save now, or as soon as Mutter has told the monitors' names if it has not yet. */
+    _whenMonitorsKnown(save) {
+        if (this._monitorSizes.isSettled())
+            save();
+        else
+            this._waiting.push(save);
+    }
+
+    /** Carries out the saves that waited for the monitors' names, if the memory is still on. */
+    _runWaiting() {
+        const waiting = this._waiting;
+        this._waiting = [];
+        if (!this._isMemoryOn())
+            return;
+        for (const save of waiting)
+            save();
     }
 
     /**
