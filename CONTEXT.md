@@ -44,8 +44,8 @@ _Avoid_: Hot corner (a different GNOME feature)
 
 **Window look**:
 How SnapTile makes every window appear, tiled or floating: all four corners rounded to the
-same radius (2 mm) and a visual margin (0.83 mm) around the window. Purely visual: it never
-changes where a window can be placed, so floating windows can still overlap, touch or sit
+same radius (2 mm) and a visual margin (0.83 mm) around the window, and no shadow. Purely
+visual: it never changes where a window can be placed, so floating windows can still overlap, touch or sit
 anywhere. Applies to every application window and dialog. Not to menus, tooltips or the
 GNOME interface, and not to full-screen windows (those that also hide the dock and top bar).
 

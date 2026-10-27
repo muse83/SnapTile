@@ -1,7 +1,8 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 
-const ANIMATION_MS = 250;
+// Short on purpose: the preview has to feel instant. GNOME's own preview takes 250 ms.
+const ANIMATION_MS = 80;
 
 /**
  * The translucent frame marking the Tile a dragged window will snap to. Uses GNOME's own
@@ -12,20 +13,29 @@ const ANIMATION_MS = 250;
 export class TilePreview {
     constructor() {
         this._widget = null;
+        this._shown = null; // key of the frame the widget is on its way to
         this._fading = new Set();
     }
 
     /**
-     * Shows the frame at `visible` (the Tile pulled in by the margin) for the dragged `window`,
-     * gliding there if already visible. `radius` is the corner radius in logical pixels.
+     * Shows the frame at `visible` (the Tile pulled in by the margin) for the dragged `window`:
+     * it fades in right at the Tile, and glides there from the previous one if already visible.
+     * `radius` is the corner radius in logical pixels. The drag calls this on every pointer
+     * poll, so asking for what is already shown does nothing; restarting the animation each
+     * time would keep it from ever arriving.
      */
     show(window, visible, radius) {
-        if (!this._widget) {
-            const start = window.get_frame_rect();
+        const key = `${visible.x},${visible.y},${visible.width},${visible.height},${radius}`;
+        if (this._widget && key === this._shown)
+            return;
+        this._shown = key;
+
+        const created = !this._widget;
+        if (created) {
             this._widget = new St.Widget({
                 style_class: 'tile-preview',
                 opacity: 0,
-                x: start.x, y: start.y, width: start.width, height: start.height,
+                x: visible.x, y: visible.y, width: visible.width, height: visible.height,
             });
             global.window_group.add_child(this._widget);
         }
@@ -39,7 +49,9 @@ export class TilePreview {
 
         this._widget.show();
         this._widget.ease({
-            x: visible.x, y: visible.y, width: visible.width, height: visible.height,
+            ...(created ? {} : {
+                x: visible.x, y: visible.y, width: visible.width, height: visible.height,
+            }),
             opacity: 255,
             duration: ANIMATION_MS,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -52,6 +64,7 @@ export class TilePreview {
         if (!widget)
             return;
         this._widget = null;
+        this._shown = null;
         this._fading.add(widget);
         widget.ease({
             opacity: 0,
@@ -71,6 +84,7 @@ export class TilePreview {
             widget?.destroy();
         }
         this._widget = null;
+        this._shown = null;
         this._fading.clear();
     }
 }

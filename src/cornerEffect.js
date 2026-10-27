@@ -2,10 +2,11 @@ import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 
-// Fragment shader. The window picture is cut only inside the window's frame, so whatever the
-// application draws outside it (its own shadow, the invisible resize border) stays as it is.
-// Inside the frame the outer `margin` is cleared and the corners are rounded around what is
-// left. The picture is premultiplied, so scaling all four channels fades the pixel out.
+// Fragment shader. Everything outside the visible window is cleared: the margin inside the
+// window's frame, and whatever the application draws outside the frame (its own shadow, the
+// invisible resize border). A shadow left standing would sit around the frame, one margin away
+// from the visible window, and look like a second border. The corners are rounded around what
+// is left. The picture is premultiplied, so scaling all four channels fades the pixel out.
 const UNIFORMS = `
 uniform sampler2D tex;
 uniform float texture_left;
@@ -29,13 +30,11 @@ const BODY = `
     vec2 inner_low = visible_low + radius;
     vec2 inner_high = visible_high - radius;
     vec2 into_corner = max(inner_low - p, p - inner_high);
-    bool in_frame = p.x >= frame_left && p.x <= frame_right &&
-                    p.y >= frame_top && p.y <= frame_bottom;
     bool in_visible = p.x >= visible_low.x && p.x <= visible_high.x &&
                       p.y >= visible_low.y && p.y <= visible_high.y;
-    if (in_frame && !in_visible)
+    if (!in_visible)
         color = vec4(0.0);
-    else if (in_frame && into_corner.x > 0.0 && into_corner.y > 0.0)
+    else if (into_corner.x > 0.0 && into_corner.y > 0.0)
         color *= clamp(radius - length(into_corner) + 0.5, 0.0, 1.0);
     cogl_color_out = color;
 `;
@@ -84,9 +83,10 @@ class SourceEffect extends Clutter.ShaderEffect {
 const ShaderEffectBase = GObject.registerClass(SNIPPET_API ? SnippetEffect : SourceEffect);
 
 /**
- * Gives a window actor the Window look: the margin cleared around the frame and the four
- * corners rounded. `setFrame()` says where the frame lies inside the actor (the actor also
- * covers the application's shadow) and how big the radius and margin are.
+ * Gives a window actor the Window look: the margin cleared around the frame, the application's
+ * shadow cleared outside it, and the four corners rounded. `setFrame()` says where the frame
+ * lies inside the actor (the actor also covers the application's shadow) and how big the
+ * radius and margin are.
  */
 export const CornerEffect = GObject.registerClass(
 class SnapTileCornerEffect extends ShaderEffectBase {

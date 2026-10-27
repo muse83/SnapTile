@@ -19,7 +19,8 @@ maintainer wants the uniform look macOS has, and it is part of the first version
 ## Consequences
 
 - Forcing corners means cutting the window picture, which also cuts the application's own
-  shadow, so shadows have to be redrawn. Applications that draw their own corners cannot be
+  shadow, so shadows have to be redrawn (decided otherwise later: see the last section, no
+  shadows). Applications that draw their own corners cannot be
   made smaller, only cut. Animations, other extensions, fractional scaling and screen
   recording are known trouble spots. See `docs/research/rounded-corners-and-gaps-feasibility.md`.
 - GNOME maintainers advise against forcing corners on all windows. Expect extra upkeep with
@@ -32,13 +33,15 @@ maintainer wants the uniform look macOS has, and it is part of the first version
 ## How the corners are made (2026-10-23, built in the first window look ticket)
 
 - A shader effect on each window cuts the corners, and only inside the visible window frame.
-  What an application draws outside the frame, its own shadow above all, stays as it is.
-  SnapTile draws no shadow of its own.
+  What an application draws outside the frame, its own shadow above all, stayed as it was
+  (replaced: see the last section, the shadow is now cleared).
 - GNOME 50 and 51 want the shader handed over in different ways (GNOME 51 dropped the
   interface the reference extension uses), so the effect supports both. Details and the
   pitfalls found while building it are in `docs/research/rounded-corners-and-gaps-feasibility.md`.
 - Not yet verified: fractional scaling, flicker during open/close/minimize animations, and
-  shadows that Mutter itself draws for windows without a client shadow.
+  shadows that Mutter itself draws for windows without a client shadow (the last section
+  clears everything outside the visible window, which covers those too, not yet seen on a
+  window without a client shadow).
 
 ## How the margin and the preview are made (2026-10-23, built in the second window look ticket)
 
@@ -46,8 +49,8 @@ maintainer wants the uniform look macOS has, and it is part of the first version
   0.83 mm are made transparent and the corners are rounded around what is left. The window
   keeps its frame, so placement, overlap and touching are untouched; two tiled windows appear
   1.66 mm apart because each one hides its own margin.
-- The application's shadow stays where it is, outside the frame. It therefore sits one margin
-  further away from the visible window than before. Clicks in the margin still reach the
+- The application's shadow stayed where it was, outside the frame (replaced: see the last
+  section). It therefore sat one margin further away from the visible window. Clicks in the margin still reach the
   window, as the margin is only visual.
 - The Tile preview is drawn on the Tile pulled in by the margin, with the same corner radius
   as a window. The Tile decision hands out the pulled-in rectangle (`visible`) and the
@@ -60,3 +63,21 @@ maintainer wants the uniform look macOS has, and it is part of the first version
   where it is dropped, and the preview shows the same margin and corner radius as the window.
 - Margin and radius are whole pixels, so on a monitor at 96 DPI the visible gap is 6 px
   (1.59 mm), not exactly 1.66 mm.
+
+## No shadow, and a fast preview (2026-10-27, maintainer decision after the first run on a real desktop)
+
+- The application's own shadow is now cleared too. Until now it stayed, but it sits around the
+  window frame while the visible window is pulled in by the margin, so it showed as a second
+  border at the old window size. SnapTile has no shadow of its own, so windows now have none:
+  rounded corners and the margin only. Drawing a consistent shadow of SnapTile's own was
+  considered and left out: windows without a client shadow have no room in their picture for
+  one, so it would need a second actor per window (see the research note), and the maintainer
+  allowed removing the effect. It can be added later as its own ticket.
+- This replaces the sentence above "The application's shadow stays where it is" and the
+  smoke test that protected it; the test now checks that the pixels around a window show the
+  bare desktop.
+- The Tile preview used to start at the size of the dragged window and glide to the Tile over
+  250 ms, and the animation restarted at every pointer poll (every 30 ms), so it took seconds
+  to arrive on a real desktop. It now appears at its Tile at once with an 80 ms fade, glides
+  between Tiles in 80 ms, and does nothing when the Tile has not changed. The smoke test checks
+  that the preview is born at its final size.

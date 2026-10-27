@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 196 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 197 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=196
+MAX_RUNTIME=197
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -394,19 +394,21 @@ check "only the application window has the effect, the menu has none" '"applicat
     'global.get_window_actors().map(a => `${a.meta_window.get_window_type() === 0 ? "application" : "menu"}:${a.get_effects().length}`).sort().join(",")'
 kill $WINDOW_PID 2>/dev/null
 
-echo "Window look: the application's own shadow stays"
+echo "Window look: no shadow ring around the visible window"
+for _ in $(seq 30); do [ "$(ev 'global.get_window_actors().length')" = 0 ] && break; sleep 0.1; done # the earlier probe window is really gone
+take_shot /tmp/shadow-bare.png >/dev/null
 start_probe
 ev "$DISABLE" >/dev/null
 take_shot /tmp/shadow-off.png >/dev/null
 ev "$ENABLE" >/dev/null
 take_shot /tmp/shadow-on.png >/dev/null
 SHADOW_POINTS="438 224 436 222 440 224 438 230 436 300 441 222 840 224 842 226 842 530 440 527 436 524"
-off=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png $SHADOW_POINTS | tr '\n' '|')
+bare=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-bare.png $SHADOW_POINTS | tr '\n' '|')
 on=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-on.png $SHADOW_POINTS | tr '\n' '|')
-[ "$off" = "$on" ] && pass "pixels in the shadow around the corners are identical with and without SnapTile" || fail "shadow pixels changed: without $off with $on"
+[ "$bare" = "$on" ] && pass "pixels around the corners and beside the window show the bare desktop: no second border" || fail "shadow pixels are painted: bare desktop $bare with SnapTile $on"
 near=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png 436 300)
 far=$(python3 "$(dirname "$0")/pixels.py" /tmp/shadow-off.png 380 300)
-[ "$near" != "$far" ] && pass "there is a shadow to protect (beside the window $near, further away $far)" || fail "the probe window draws no shadow ($near = $far)"
+[ "$near" != "$far" ] && pass "there is a shadow to remove (beside the window without SnapTile $near, further away $far)" || fail "the probe window draws no shadow ($near = $far)"
 kill $WINDOW_PID 2>/dev/null
 gsettings set org.gnome.desktop.interface enable-animations true
 
@@ -449,7 +451,14 @@ echo "Window look: the Tile preview matches the snapped window"
 start_probe
 take_shot /tmp/preview-before.png >/dev/null
 grab_window
-drag_to 1276 3
+# Records where the preview is when it first appears (Clutter calls the signal child-added, older versions actor-added).
+ev "(() => { const {GObject, Clutter} = imports.gi; const name = ['child-added', 'actor-added'].find(n => GObject.signal_lookup(n, Clutter.Actor.\$gtype)); globalThis.__birth = []; globalThis.__birthId = global.window_group.connect(name, (group, c) => { if (c.style_class === 'tile-preview') globalThis.__birth.push([Math.round(c.x), Math.round(c.y), Math.round(c.width), Math.round(c.height)]); }); })(), 1" >/dev/null
+move $((GX + 20)) $((GY + 20)) # the drag starts, far from any zone
+sleep 0.3
+move 1276 3
+sleep 0.3
+check "the preview appears at its final size at once, it does not grow from the dragged window's size" '"[[643,35,634,338]]"' \
+    'global.window_group.disconnect(globalThis.__birthId), JSON.stringify(globalThis.__birth)'
 take_shot /tmp/preview-during.png >/dev/null
 check "the preview is drawn 3 px inside its Tile, like the window it will become" '"[[643,35,634,338]]"' "$PREVIEW_DRAWN"
 check "the preview has the window's corner radius" '"border-radius: 8px;"' \
