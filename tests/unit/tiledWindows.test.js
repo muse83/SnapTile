@@ -42,12 +42,20 @@ test('the next tiling after a release remembers a new size', () => {
     assert.deepEqual(tiled.get('w1'), {tile: 'full', sizeBefore: {width: 300, height: 200}, frame: LEFT});
 });
 
-test('a window that never had a free size gets none invented', () => {
+test('a window that never had a free size gets none invented from its Tile', () => {
     const tiled = new TiledWindows();
     tiled.tile('w1', 'left', null, LEFT);
-    tiled.tile('w1', 'right', SIZE, RIGHT); // already tiled: must not pick up the tiled size
-    assert.deepEqual(tiled.get('w1'), {tile: 'right', sizeBefore: null, frame: RIGHT});
+    assert.deepEqual(tiled.get('w1'), {tile: 'left', sizeBefore: null, frame: LEFT});
     assert.equal(tiled.release('w1'), null);
+});
+
+test('tiling again fills in a size that was unknown, but never replaces a known one', () => {
+    const tiled = new TiledWindows();
+    tiled.tile('w1', 'left', null, LEFT);
+    tiled.tile('w1', 'right', SIZE, RIGHT);
+    assert.deepEqual(tiled.get('w1'), {tile: 'right', sizeBefore: SIZE, frame: RIGHT});
+    tiled.tile('w1', 'left', {width: 1, height: 1}, LEFT);
+    assert.deepEqual(tiled.get('w1').sizeBefore, SIZE);
 });
 
 test('windows are independent', () => {

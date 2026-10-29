@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {TILES, tileRect} from '../../src/tileDecision.js';
-import {MAX_APPLICATIONS, appKeyOf, parsePlaces, placementFor, placementForSecondWindow, rememberFree, rememberOnClose, rememberWindow, serialisePlaces} from '../../src/rememberedPlaces.js';
+import {MAX_APPLICATIONS, appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberFree, rememberOnClose, rememberWindow, serialisePlaces} from '../../src/rememberedPlaces.js';
 
 const FRAME = {x: 100, y: 120, width: 800, height: 600};
 const WORK = {x: 0, y: 32, width: 1920, height: 1048};
@@ -179,6 +179,7 @@ test('without any monitor the frame is returned unchanged', () => {
 // --- tiled and maximised windows: remembering ---
 
 const LEFT_TILE = {x: 0, y: 32, width: 960, height: 1048}; // the left half of WORK
+const RIGHT_TILE = {x: 960, y: 32, width: 960, height: 1048}; // the right half of WORK
 const SIZE_BEFORE = {width: 700, height: 500};
 
 test('a tiled window is remembered by its Tile, the Tile rectangle and its earlier size', () => {
@@ -193,10 +194,30 @@ test('a tiled window that never had a free size is remembered without one', () =
     }
 });
 
-test('a size is never invented for a tiled window from what was stored before', () => {
-    const before = {a: {frame: FRAME}};
-    const places = rememberWindow(before, 'a', {frame: LEFT_TILE, tile: 'left', sizeBefore: null});
-    assert.deepEqual(places, {a: {frame: LEFT_TILE, tile: 'left'}});
+test('a tiled window with no known size keeps the free size the application had', () => {
+    const fromFree = rememberWindow({a: {frame: FRAME}}, 'a', {frame: LEFT_TILE, tile: 'left', sizeBefore: null});
+    assert.deepEqual(fromFree, {a: {frame: LEFT_TILE, tile: 'left', sizeBefore: {width: FRAME.width, height: FRAME.height}}});
+
+    const fromTiled = rememberWindow(
+        {a: {frame: LEFT_TILE, tile: 'left', sizeBefore: SIZE_BEFORE}}, 'a', {frame: RIGHT_TILE, tile: 'right'});
+    assert.deepEqual(fromTiled.a.sizeBefore, SIZE_BEFORE);
+});
+
+test('a tiled window\'s own earlier size wins over the stored one', () => {
+    const places = rememberWindow({a: {frame: FRAME}}, 'a', {frame: LEFT_TILE, tile: 'left', sizeBefore: SIZE_BEFORE});
+    assert.deepEqual(places.a.sizeBefore, SIZE_BEFORE);
+});
+
+test('the size of a Tile is never taken for the free size of the application', () => {
+    // The application has no free size on record; a tiled window without one must not get its Tile's size.
+    assert.deepEqual(rememberWindow({}, 'a', {frame: LEFT_TILE, tile: 'left'}), {a: {frame: LEFT_TILE, tile: 'left'}});
+    const tiledWithout = {a: {frame: LEFT_TILE, tile: 'left'}};
+    assert.deepEqual(rememberWindow(tiledWithout, 'a', {frame: RIGHT_TILE, tile: 'right'}).a, {frame: RIGHT_TILE, tile: 'right'});
+});
+
+test('a free window is remembered without any earlier size', () => {
+    const places = rememberWindow({a: {frame: LEFT_TILE, tile: 'left', sizeBefore: SIZE_BEFORE}}, 'a', {frame: FRAME});
+    assert.deepEqual(places, {a: {frame: FRAME}});
 });
 
 test('a window maximised with the window button is remembered by the flag', () => {
@@ -437,10 +458,11 @@ test('a monitor of the list that is known and is not the one nearest is never ke
 test('a tiled or maximised window that cannot name its monitor keeps the one remembered before, with no relative position', () => {
     const tileOnRight = tileRect('left', SECOND);
     const tiled = rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: tileOnRight, tile: 'left'}, UNNAMED);
-    assert.deepEqual(tiled.a, {frame: tileOnRight, tile: 'left', monitor: 'HDMI-1'});
+    // The free size from before stays, for a tiled as for a maximised window.
+    const freeSize = {width: 600, height: 400};
+    assert.deepEqual(tiled.a, {frame: tileOnRight, tile: 'left', sizeBefore: freeSize, monitor: 'HDMI-1'});
     const maximised = rememberWindow(REMEMBERED_ON_RIGHT, 'a', {frame: SECOND, maximized: true}, UNNAMED);
-    // The free size from before stays, as for any maximised window.
-    assert.deepEqual(maximised.a, {frame: SECOND, maximized: true, sizeBefore: {width: 600, height: 400}, monitor: 'HDMI-1'});
+    assert.deepEqual(maximised.a, {frame: SECOND, maximized: true, sizeBefore: freeSize, monitor: 'HDMI-1'});
 });
 
 test('with no monitor information at all the monitor remembered before is kept, without a relative position', () => {
@@ -716,4 +738,28 @@ test('the file chooser Nautilus opens without a parent window is left alone', ()
 
 test('a missing GTK window path matters for Nautilus only', () => {
     assert.equal(appKeyOf({...WINDOW, gtkWindowPath: null}), 'org.example.Editor');
+});
+
+// --- the free size of an application ---
+
+test('the free size of an application is that of its free window', () => {
+    assert.deepEqual(freeSizeFor({a: {frame: FRAME}}, 'a'), {width: FRAME.width, height: FRAME.height});
+});
+
+test('the free size of an application is the earlier size of a tiled or maximised window', () => {
+    const tiled = {a: {frame: LEFT_TILE, tile: 'left', sizeBefore: SIZE_BEFORE}};
+    assert.deepEqual(freeSizeFor(tiled, 'a'), SIZE_BEFORE);
+    const maximised = {a: {frame: WORK, maximized: true, sizeBefore: SIZE_BEFORE}};
+    assert.deepEqual(freeSizeFor(maximised, 'a'), SIZE_BEFORE);
+});
+
+test('no free size is known for an unknown application or a tiled window without an earlier size', () => {
+    assert.equal(freeSizeFor({}, 'a'), null);
+    assert.equal(freeSizeFor({a: {frame: LEFT_TILE, tile: 'left'}}, 'a'), null);
+});
+
+test('the free size handed out is a copy', () => {
+    const places = {a: {frame: FRAME}};
+    freeSizeFor(places, 'a').width = 1;
+    assert.equal(places.a.frame.width, FRAME.width);
 });

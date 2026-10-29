@@ -14,14 +14,15 @@ export class TiledWindows {
     /**
      * Call when a window is tiled. The Tile is always the latest one, but only the first call
      * per tiling keeps its size: a window that is already tiled keeps the size from before.
-     * Pass null for a window that never had a free size (it opened tiled); it then keeps its
-     * own size when dragged out. The frame is the rectangle of the Tile the window was given.
+     * A size that was unknown then is filled in by a later call that knows one. Pass null for a
+     * window that never had a free size (it opened tiled); it then keeps its own size when
+     * dragged out. The frame is the rectangle of the Tile the window was given.
      */
     tile(windowId, tile, sizeBefore, frame) {
         const known = this._windows.get(windowId);
         this._windows.set(windowId, {
             tile,
-            sizeBefore: known ? known.sizeBefore : copySize(sizeBefore),
+            sizeBefore: known?.sizeBefore ?? copySize(sizeBefore),
             frame: copyFrame(frame),
         });
     }

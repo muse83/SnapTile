@@ -15,6 +15,12 @@ reappears the same way: size and position, or the Tile, or maximised. One place 
 application; the window last moved, resized or closed counts. Has a switch and a clear button
 in the Extensions manager. Dialogs are never part of it.
 
+**Free size**:
+The size an application's window has when it is in no Tile and not maximised. Kept per
+application, also across restarts, and given back to a window that leaves a Tile. Never taken
+from the size of a Tile. Where none is known, a window leaving a Tile keeps the size of the Tile.
+_Avoid_: Default size, normal size
+
 **Second window**:
 A new window of an application that already has an open window. It does not use the Remembered
 place's position: it opens free (never in a Tile, never maximised) with the remembered free size,

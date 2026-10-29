@@ -6,7 +6,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {anchoredOrigin, decideTile, tileRect} from './tileDecision.js';
+import {anchoredOrigin, decideTile, tileOfFrame, tileRect} from './tileDecision.js';
 import {TilePreview} from './tilePreview.js';
 
 // How often the pointer is read during a drag. The shell offers no pointer signal while
@@ -21,6 +21,8 @@ const POLL_INTERVAL_MS = 30;
  *
  * The window memory puts a reopened window into its Tile through snapWindow(), the same path a
  * drop takes, but with the earlier size it remembered (or none) instead of the current one.
+ * It also tells, through setDefaultSizeSource(), the free size an application is known to have
+ * (ADR 0015): a window that leaves a Tile without a size of its own gets that one.
  */
 export class DragSnap {
     constructor(monitorSizes, tiledWindows) {
@@ -30,6 +32,16 @@ export class DragSnap {
         this._tracked = new Map(); // window id -> {window, unmanagedId, sizeChangedId}
         this._drag = null; // {window, state, sourceId} while a move is running
         this._signals = [];
+        this._defaultSizeOf = () => null;
+    }
+
+    /**
+     * Sets where the free size of a window's application is asked: a function from a window to
+     * {width, height}, or null if none is known. Without one (or after setting null) no window
+     * has a free size but its own.
+     */
+    setDefaultSizeSource(source) {
+        this._defaultSizeOf = source ?? (() => null);
     }
 
     /** Call from the extension's enable(). */
@@ -89,7 +101,7 @@ export class DragSnap {
         this._preview.hide();
 
         if (result)
-            this._snap(window, result);
+            this._snap(window, result, tiled);
         else if (cancelled && tiled)
             this.snapWindow(window, {rect: tiled.frame, workArea: this._workAreaOf(window), tile: tiled.tile},
                 tiled.sizeBefore);
@@ -116,21 +128,26 @@ export class DragSnap {
         return result;
     }
 
-    /** A drop: the window's size now is the size to give back when it is dragged out. */
-    _snap(window, result) {
+    /**
+     * A drop. A window that was free before the drag has its size now as the size to give back
+     * when it is dragged out. One that came out of a Tile had its earlier size given back at the
+     * start of the drag, or has none: its size now is that of the Tile (or whatever the
+     * application made of it) and must not become the size before tiling (ADR 0015).
+     */
+    _snap(window, result, tiled) {
         const frame = window.get_frame_rect();
-        this.snapWindow(window, result, {width: frame.width, height: frame.height});
+        this.snapWindow(window, result, tiled ? tiled.sizeBefore : {width: frame.width, height: frame.height});
     }
 
     /**
      * Puts a window into a Tile and records it as tiled.
      * @param {{rect, workArea, tile}} result the Tile, its rectangle and the work area it is in
      * @param {?{width: number, height: number}} sizeBefore the size to give back when the
-     *   window is dragged out of the Tile; null if the window never had a free size, it then
-     *   keeps its own
+     *   window is dragged out of the Tile; null if the window has none of its own, it then gets
+     *   the free size its application is known to have, and if there is none it keeps its own
      */
     snapWindow(window, {rect, workArea, tile}, sizeBefore) {
-        this._tiledWindows.tile(window.get_id(), tile, sizeBefore, rect);
+        this._tiledWindows.tile(window.get_id(), tile, sizeBefore ?? this._defaultSizeOf(window), rect);
         const entry = this._track(window);
 
         if (window.is_maximized())
@@ -159,16 +176,35 @@ export class DragSnap {
     /**
      * Puts a window into the named Tile on the monitor it is on, as a keyboard shortcut does.
      * Does nothing for a window that cannot be tiled. A maximised window has no free size to
-     * give back (its frame is the whole screen), so it gets none; an already tiled one keeps
-     * the size from before its first tiling.
+     * give back (its frame is the whole screen), and an already tiled one is as big as its Tile
+     * (it keeps the size from before its first tiling): neither takes its size now.
      */
     snapToTile(window, tile) {
         if (!isTileable(window))
             return;
         const workArea = this._workAreaOf(window);
         const frame = window.get_frame_rect();
-        const sizeBefore = window.is_maximized() ? null : {width: frame.width, height: frame.height};
+        const tiled = this._tiledWindows.get(window.get_id());
+        const sizeBefore = window.is_maximized() || tiled ? null : {width: frame.width, height: frame.height};
         this.snapWindow(window, {rect: tileRect(tile, workArea), workArea, tile}, sizeBefore);
+    }
+
+    /**
+     * Records a window that is open when SnapTile starts and sits in a Tile as tiled in that
+     * Tile, without moving it: tiling done before the start (or by an earlier run) leaves no
+     * record, and without one the window would keep its Tile's size when dragged out. Does
+     * nothing for a window that cannot be tiled, sits in no Tile or is recorded already.
+     * @param {?{width: number, height: number}} sizeBefore the free size of its application, if known
+     */
+    adoptTiled(window, sizeBefore) {
+        if (!isTileable(window) || window.get_monitor() < 0 || this._tiledWindows.get(window.get_id()))
+            return;
+        const workArea = this._workAreaOf(window);
+        const tile = tileOfFrame(window.get_frame_rect(), workArea);
+        if (!tile)
+            return;
+        this._tiledWindows.tile(window.get_id(), tile, sizeBefore, tileRect(tile, workArea));
+        this._track(window);
     }
 
     _workAreaOf(window) {
@@ -185,7 +221,8 @@ export class DragSnap {
     /** Gives a tiled window its earlier size back when it is dragged out of the Tile. */
     _restoreSize(window) {
         const record = this._tiledWindows.get(window.get_id());
-        const size = this._untrack(window);
+        // A tiled window without a size of its own gets the free size of its application, if known.
+        const size = this._untrack(window) ?? (record ? this._defaultSizeOf(window) : null);
         // What Escape needs to put the window back into its Tile, also if it has no earlier size.
         if (record)
             this._drag.tiled = {frame: record.frame, tile: record.tile, sizeBefore: size};

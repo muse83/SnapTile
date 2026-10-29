@@ -128,6 +128,34 @@ export function tileRect(tile, area) {
     }
 }
 
+// How far a window may differ from the rectangle of its Tile and still count as sitting in it:
+// an application that only takes sizes in whole steps (a terminal, in character cells) ends up
+// a little smaller than the Tile it was given, and one that cannot get as small as the Tile a
+// little larger.
+const TILE_MATCH_SLACK_PX = 32;
+
+/**
+ * The name of the Tile a window sits in, or null if it sits in none. Tells a window that was
+ * tiled before SnapTile was (re)started from a free one. The nearest Tile within the slack
+ * wins.
+ * @param {{x: number, y: number, width: number, height: number}} frame the window's frame
+ * @param {{x: number, y: number, width: number, height: number}} area the work area of its monitor
+ */
+export function tileOfFrame(frame, area) {
+    let found = null;
+    let foundOffset = Infinity;
+    for (const tile of TILES) {
+        const rect = tileRect(tile, area);
+        const offsets = ['x', 'y', 'width', 'height'].map(side => Math.abs(frame[side] - rect[side]));
+        const offset = offsets.reduce((sum, value) => sum + value, 0);
+        if (offsets.every(value => value <= TILE_MATCH_SLACK_PX) && offset < foundOffset) {
+            found = tile;
+            foundOffset = offset;
+        }
+    }
+    return found;
+}
+
 // Merged thirds: state is {monitor, anchor, current}. The anchor is the third the merge
 // started from; returning to it gives the single third again, moving on to the far
 // neighbour re-anchors on the third just left. Skipping a third falls back to single.

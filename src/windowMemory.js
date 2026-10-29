@@ -5,10 +5,10 @@ import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {appKeyOf, parsePlaces, placementFor, placementForSecondWindow, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
+import {appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
 
 /**
- * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011, ADR 0012): remembers the place of an application's window when the
+ * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011, ADR 0012, ADR 0015): remembers the place of an application's window when the
  * user finishes moving or resizing it, when it closes and when the extension is disabled, and
  * puts the next new window of that application there: the size and position of a free window,
  * the Tile of a tiled one (through the drag's own snap path), or maximised. A new window of an
@@ -57,8 +57,11 @@ export class WindowMemory {
     enable() {
         this._places = parsePlaces(this._settings.get_string('places'));
 
-        for (const actor of global.get_window_actors())
+        this._dragSnap.setDefaultSizeSource(window => this._defaultSizeOf(window));
+        for (const actor of global.get_window_actors()) {
             this._watch(actor.meta_window, false);
+            this._adoptIfTiled(actor.meta_window);
+        }
 
         this._monitorSizes.whenSettled(() => this._runWaiting());
 
@@ -75,6 +78,7 @@ export class WindowMemory {
 
     /** Call from the extension's disable(). Saves every open window first (if switched on). */
     destroy() {
+        this._dragSnap.setDefaultSizeSource(null);
         try {
             if (this._isMemoryOn()) {
                 this._runWaiting();
@@ -93,6 +97,25 @@ export class WindowMemory {
             }
             this._windows.clear();
         }
+    }
+
+    /**
+     * The free size the window's application is known to have, to give it back when it leaves a
+     * Tile (ADR 0015), or null: none known, the window is left alone, or the memory is switched off.
+     */
+    _defaultSizeOf(window) {
+        const key = this._isMemoryOn() ? appKeyOf(factsOf(window)) : null;
+        return key === null ? null : freeSizeFor(this._places, key);
+    }
+
+    /**
+     * A window that is open when the extension starts and sits in a Tile was tiled before (by
+     * an earlier run): it is recorded as tiled again, with its application's free size, so
+     * dragging it out gives that size back and saving it keeps its Tile (ADR 0015).
+     */
+    _adoptIfTiled(window) {
+        if (this._isMemoryOn() && appKeyOf(factsOf(window)) !== null)
+            this._dragSnap.adoptTiled(window, this._defaultSizeOf(window));
     }
 
     /** The switch of the preferences window: whether windows are remembered and placed. */

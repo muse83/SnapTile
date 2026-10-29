@@ -63,3 +63,4 @@ windows reopen in their Tile or maximised" (spec: issue #8).
 - Dropping a window with no known earlier size into another Tile records its size at that
   moment as the size from before: the user dragged it there, which is the one case where the
   current size is recorded (ADR 0008).
+  Superseded by ADR 0015: that size is the old Tile's, not the user's, so it is no longer recorded.

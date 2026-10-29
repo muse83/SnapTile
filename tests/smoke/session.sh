@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 206 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 211 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=206
+MAX_RUNTIME=211
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -284,10 +284,10 @@ button RELEASED
 snap "left half again" 3 360 0,32,640,688
 ev "$DISABLE" >/dev/null
 ev "$ENABLE" >/dev/null
-check "after disabling and enabling, nothing is recorded" 'null' "$TILED"
+check "after disabling and enabling, the window in its Tile is recorded again with the application's free size" '"left 400x300"' "$TILED"
 grab_window
 drag_to 640 300
-check "a window with no remembered size keeps its own" '"[640,688]"' "$SIZE"
+check "dragged out after the restart, it gets that free size back" '"[400,300]"' "$SIZE"
 button RELEASED
 
 echo "Cancelling a drag with Escape:"
@@ -764,6 +764,29 @@ check "closing it invents no size from the application's default" '"org.snaptile
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 drag_title 900 46 -300 250
 check "dragged out, a window that never had a free size keeps its own size" '"640x688"' "$(size_of mem-a)"
+stop_apps
+
+# SnapTile starting (or restarting) while a window sits in a Tile: the record of tiled windows is
+# gone then, but the window must still get the application's free size back (ADR 0015).
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+place_window mem-a 50 100 520 360
+drag_title 250 114 -247 286
+reload_extension # SnapTile stops, saving the window, and starts again with the window in its Tile
+check "a window already in a Tile when SnapTile starts is recorded as tiled in it" '"left"' "$(tile_of mem-a)"
+reload_extension
+check "a restart does not lose the Tile or the size from before tiling" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
+drag_title 300 46 400 250
+check "dragged out after restarts, the window gets the application's free size back" '"520x360"' "$(size_of mem-a)"
+check "that free size is what is remembered, not the size of the Tile" '"org.snaptile.MemA=free 456,288,520,360 -"' "$KINDS"
+stop_apps
+
+# A window that comes out of a Tile with no size of its own and goes into another Tile did not
+# have its size now before: it is the Tile's size (ADR 0015).
+set_places '{"org.snaptile.MemA": {frame: {x: 640, y: 32, width: 640, height: 688}, tile: "right"}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+drag_title 900 46 -897 354 # out of the right Tile, into the left Edge zone
+check "a Tile's size is not taken for the size before tiling when moving from Tile to Tile" '"org.snaptile.MemA=left 0,32,640,688 -"' "$KINDS"
 stop_apps
 
 reset_places

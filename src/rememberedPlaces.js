@@ -11,6 +11,7 @@
 //   {frame, tile, sizeBefore?}           a tiled window: the Tile (one of the 14, by name), the
 //                                        rectangle of that Tile (this is also what tells the
 //                                        monitor) and the size from before tiling, if one is known
+//                                        (the one the application had, if the window has none)
 //   {frame, maximized: true, sizeBefore?}  a window maximised with the window button; the frame
 //                                        is the last position, as a fallback for the monitor
 // sizeBefore is {width, height}. An unknown free size is never invented: it is left out.
@@ -140,9 +141,19 @@ function freeSizeOf(entry) {
 }
 
 /**
+ * The free size the application is known to have, to give a window back when it leaves a Tile
+ * (ADR 0015): that of its free window, or the earlier size of a tiled or maximised one. Null
+ * when none is known; it is never invented from the size of a Tile.
+ */
+export function freeSizeFor(places, key) {
+    return freeSizeOf(places[key]);
+}
+
+/**
  * The places after a window of the application was last moved, resized or closed. The
  * application becomes the most recently used one. The given places are not changed. A state
- * without a frame size, or with a name that is no Tile, is ignored.
+ * without a frame size, or with a name that is no Tile, is ignored. A tiled or maximised window
+ * without an earlier size of its own keeps the free size the application had before.
  * @param {{frame: object, tile?: string, maximized?: boolean, sizeBefore?: ?object}} state
  *   what the window is: a free window has only a frame; a tiled one the Tile, the Tile's
  *   rectangle as frame and the size from before tiling (null or left out if none is known); a
@@ -161,7 +172,9 @@ export function rememberWindow(places, key, state, monitors = []) {
     if (state.tile !== undefined && !TILES.includes(state.tile))
         return places;
 
-    const sizeBefore = state.maximized ?
+    // A tiled or maximised window with no earlier size of its own does not wipe the free size the
+    // application had: that size is the application's, not the window's (ADR 0015).
+    const sizeBefore = state.maximized || state.tile !== undefined ?
         state.sizeBefore ?? freeSizeOf(places[key]) : state.sizeBefore;
     const result = {...places};
     delete result[key]; // re-insert, so the most recently used application stays last

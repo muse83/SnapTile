@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {TILES, anchoredOrigin, decideTile, insetRect, pixelsPerCm, tileRect} from '../../src/tileDecision.js';
+import {TILES, anchoredOrigin, decideTile, insetRect, pixelsPerCm, tileOfFrame, tileRect} from '../../src/tileDecision.js';
 
 // 1000 x 600 px on 250 x 150 mm: 40 px per cm, so 1 cm = 40 px and 3 cm = 120 px.
 // The work area leaves 30 px for a top bar.
@@ -357,4 +357,30 @@ test('a Tile follows the work area it is asked for', () => {
 test('a name that is no Tile has no rectangle', () => {
     assert.equal(tileRect('middle', MON.workArea), null);
     assert.equal(tileRect(undefined, MON.workArea), null);
+});
+
+// --- which Tile a window sits in ---
+
+const AREA = {x: 0, y: 32, width: 1280, height: 688};
+
+test('a window exactly in a Tile is found in it, for every Tile', () => {
+    for (const tile of TILES)
+        assert.equal(tileOfFrame(tileRect(tile, AREA), AREA), tile, tile);
+});
+
+test('a window a little smaller than its Tile is still found in it (size steps of a terminal)', () => {
+    const rect = tileRect('left', AREA);
+    assert.equal(tileOfFrame({...rect, width: rect.width - 14, height: rect.height - 23}, AREA), 'left');
+});
+
+test('a window that sits freely is in no Tile', () => {
+    assert.equal(tileOfFrame({x: 50, y: 100, width: 520, height: 360}, AREA), null);
+    assert.equal(tileOfFrame({x: 0, y: 32, width: 900, height: 400}, AREA), null);
+    assert.equal(tileOfFrame({x: 3, y: 32, width: 640, height: 688}, {...AREA, x: 100}), null);
+});
+
+test('a Tile of another monitor is not found on this one', () => {
+    const other = {x: 1280, y: 0, width: 1024, height: 768};
+    assert.equal(tileOfFrame(tileRect('left', other), AREA), null);
+    assert.equal(tileOfFrame(tileRect('left', other), other), 'left');
 });
