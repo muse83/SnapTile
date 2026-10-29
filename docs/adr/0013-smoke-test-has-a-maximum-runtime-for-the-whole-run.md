@@ -30,3 +30,9 @@ ADR 0002 and extended by every ticket since.
   extension.
 - Two runs in parallel share one machine; a slow machine can make timing-sensitive checks fail.
   The waits for states make this less likely but cannot rule it out.
+- Observed 2026-10-29: on GNOME 50 about one run in four failed one check of the window memory
+  section, a different one each time, also without the change under test. In one failure the
+  check reported the frame of the previous step's window of the same title, which had not gone
+  yet. Suspected cause: `stop_apps` and `start_app` tell windows apart by title only. Not
+  confirmed and not fixed; a rerun passes. A fix would wait until the old window is really gone
+  before the next step starts.
