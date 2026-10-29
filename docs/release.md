@@ -7,7 +7,7 @@
    the zip holds a compiled schema (the review guidelines forbid it).
 3. `SMOKE_ZIP=dist/snaptile@muse83.shell-extension.zip tests/smoke/run.sh` passes: the zip
    itself, not `src/`, loads and works.
-4. Tag the commit that was packed (`git tag v1.0.0`) and push the tag.
+4. Tag the commit that was packed (`git tag v1.0.1`) and push the tag.
 5. Upload the zip at https://extensions.gnome.org/upload/ (needs the maintainer's account; a
    human does this step). The site assigns the integer `version` itself; `version-name` in
    `src/metadata.json` is the human-readable one.
