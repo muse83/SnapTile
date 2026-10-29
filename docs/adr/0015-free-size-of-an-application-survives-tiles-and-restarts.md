@@ -65,8 +65,15 @@ Free size, see CONTEXT.md). It did not, for three reasons:
   tiled, not as a free window of the Tile's size.
 - A window that was only placed by hand at exactly a Tile's rectangle is treated as tiled
   after a restart. It then gets the application's free size when dragged out.
-- The opening size is read when the window shows. An application that resizes itself right
-  after showing (restoring its own size) is remembered with the size it showed first.
+- An application may resize its window right after it showed (Electron restores its own size
+  that way). Waiting a fixed time would be too short for some and needlessly long for others,
+  and the size cannot be asked of the application (Wayland offers only the size a window has).
+  So the remembered opening size follows every resize of the window that is not the user's, by
+  the window's own size-change signal, and stops following when the user takes hold of the
+  window (move or resize), when it is tiled, maximised or full screen, when it closes or the
+  extension stops. It never replaces a size that the user or another window saved since.
+  Consequence: a window the user never touched, resized by its application or by a script, is
+  remembered with its latest size.
 - Windows whose free size was already overwritten by a Tile's size before this change stay
   that way until the application's window is resized freely once.
 - Not covered, found on the way: a maximised window cannot be dragged into a Tile (it counts

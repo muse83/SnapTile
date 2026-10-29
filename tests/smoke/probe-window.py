@@ -8,6 +8,8 @@ PROBE_DIALOG=1 opens a modal dialog window (title probe-dialog, 300x150) 1.5 sec
 PROBE_SECOND=1 opens a second window of the application (title as the first plus -2) at the same time.
 PROBE_LATER=N opens N more windows (title as the first plus -2, -3, ...), one every 1.5 seconds after the window appears.
 With PROBE_MAXIMIZE=1 they ask to be maximised too.
+PROBE_RESIZE_LATER=WIDTHxHEIGHT resizes the window itself 1 second after it appears, like an application
+restoring its own size once it showed (Electron does this).
 PROBE_FULLSCREEN=1 goes full screen 1.5 seconds after the window appears.
 PROBE_MAXIMIZE=1 asks to be maximised before the window is shown, like an application restoring itself.
 PROBE_PLAIN_WINDOW=1 makes it a plain Gtk.Window of the application instead of an application window (no GTK
@@ -65,6 +67,9 @@ def activate(app):
             dialog.present()
             return GLib.SOURCE_REMOVE
         GLib.timeout_add(1500, open_dialog)
+    if os.environ.get('PROBE_RESIZE_LATER'):
+        later_width, later_height = os.environ['PROBE_RESIZE_LATER'].split('x')
+        GLib.timeout_add(1000, lambda: (window.set_default_size(int(later_width), int(later_height)), False)[1])
     if os.environ.get('PROBE_FULLSCREEN'):
         def go_fullscreen():
             window.fullscreen()

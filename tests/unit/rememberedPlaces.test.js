@@ -800,3 +800,21 @@ test('a frame without a size is not remembered as the opening size', () => {
     const places = {};
     assert.equal(rememberInitialSize(places, 'a', {...FRAME, width: 0}), places);
 });
+
+test('the opening size follows the application while it is still the one remembered for it', () => {
+    const first = rememberInitialSize({}, 'a', FRAME);
+    const bigger = {...FRAME, width: 1000, height: 700};
+    const next = rememberInitialSize(first, 'a', bigger, [], {width: FRAME.width, height: FRAME.height});
+    assert.deepEqual(next.a.frame, bigger);
+
+    const tiled = rememberInitialSize({a: {frame: LEFT_TILE, tile: 'left'}}, 'a', FRAME);
+    const followed = rememberInitialSize(tiled, 'a', bigger, [], {width: FRAME.width, height: FRAME.height});
+    assert.deepEqual(followed.a.sizeBefore, {width: 1000, height: 700});
+    assert.equal(followed.a.tile, 'left');
+});
+
+test('the opening size does not replace a size the user set or another window saved since', () => {
+    const userSized = {a: {frame: {...FRAME, width: 900}}};
+    const bigger = {...FRAME, width: 1000, height: 700};
+    assert.equal(rememberInitialSize(userSized, 'a', bigger, [], {width: FRAME.width, height: FRAME.height}), userSized);
+});

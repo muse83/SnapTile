@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 213 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 215 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=213
+MAX_RUNTIME=215
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -574,6 +574,7 @@ start_app() { # start_app <title> <ENV=value>...: a probe window, ready once its
     case " $* " in *" PROBE_SECOND="*) await_settled "$title-2" ;; esac
     case " $* " in *" PROBE_DIALOG="*) await_settled probe-dialog ;; esac
     case " $* " in *" PROBE_LATER="*) await_settled "$title-$(( $(sed -n 's/.*PROBE_LATER=\([0-9]*\).*/\1/p' <<<" $* ") + 1 ))" ;; esac
+    case " $* " in *" PROBE_RESIZE_LATER="*) await_true "$(titled "$title").some(w => w.get_frame_rect().width === $(sed -n 's/.*PROBE_RESIZE_LATER=\([0-9]*\)x.*/\1/p' <<<" $* "))" ;; esac
     case " $* " in *" PROBE_FULLSCREEN="*) await_true "$(titled "$title").some(w => w.is_fullscreen())" ;; esac
 }
 close_window() { # close_window <title>: asks the window to close, like its close button, and waits until it is gone
@@ -626,7 +627,7 @@ DIALOG_UNTOUCHED='(() => { const frame = n => global.get_window_actors().map(a =
 check "a dialog keeps its own size and sits centred on its window, not at a remembered place" '"300,150,true"' "$DIALOG_UNTOUCHED"
 place_window mem-a 120 90 520 360
 close_window probe-dialog
-check "closing a dialog remembers nothing (only the opening size of its window is new)" '"python3=700,400,333,222;org.snaptile.MemA=440,226,400,300"' "$PLACES"
+check "closing a dialog remembers nothing (its window's opening size followed the resize that was not the user's)" '"python3=700,400,333,222;org.snaptile.MemA=120,90,520,360"' "$PLACES"
 close_window mem-a
 check "the main window's place is the one remembered, not the dialog's" '"python3=700,400,333,222;org.snaptile.MemA=120,90,520,360"' "$PLACES"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
@@ -774,6 +775,16 @@ check "a window that opened maximised invents no size from it" '"org.snaptile.Me
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
 drag_title 900 46 -300 250
 check "dragged out, a window that never had a free size keeps its own size" '"640x688"' "$(size_of mem-a)"
+stop_apps
+
+# An application that resizes its new window itself (Electron restoring its own size): the
+# remembered opening size follows it, until the user takes hold of the window.
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_RESIZE_LATER=700x500
+check "the opening size follows an application that resizes its new window itself" '"700x500"' "(e => e.frame.width + 'x' + e.frame.height)(JSON.parse($MEM.get_string('places'))['org.snaptile.MemA'])"
+drag_title 450 240 -447 160 # into the left Edge zone
+drag_title 300 46 400 250
+check "dragged out, the window gets the size the application gave itself, not its first size" '"700x500"' "$(size_of mem-a)"
 stop_apps
 
 # SnapTile starting (or restarting) while a window sits in a Tile: the record of tiled windows is

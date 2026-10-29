@@ -42,11 +42,13 @@ export class WindowMemory {
         this._dragSnap = dragSnap;
         this._places = {};
         this._signals = [];
-        // Every window watched until it closes: {closingId, arriving, unmaximizedId, savedAt}.
-        // Arriving marks a window created since enable that is not placed yet; unmaximizedId is
-        // the wait for a window that maximised itself to say it has its free size back; savedAt
-        // is when the window last saved its place (a number from _saves, 0: never), to tell
-        // which of an application's windows saved last.
+        // Every window watched until it closes: {closingId, arriving, unmaximizedId, savedAt,
+        // openingSizeId, openingSize}. Arriving marks a window created since enable that is not
+        // placed yet; unmaximizedId is the wait for a window that maximised itself to say it has
+        // its free size back; savedAt is when the window last saved its place (a number from
+        // _saves, 0: never), to tell which of an application's windows saved last;
+        // openingSizeId is the connection that follows an application resizing its new window
+        // and openingSize the size it last stored (see _rememberOpeningSize).
         this._windows = new Map();
         this._saves = 0;
         // Saves that wait for the monitors' names, in order: functions that store the place.
@@ -70,6 +72,8 @@ export class WindowMemory {
                 () => this._followStoredPlaces())],
             [global.display, global.display.connect('window-created',
                 (display, window) => this._watch(window, true))],
+            [global.display, global.display.connect('grab-op-begin',
+                (display, window) => this._stopFollowingOpeningSize(window))],
             [global.display, global.display.connect('grab-op-end',
                 (display, window) => this._saveAfterGrab(window))],
             [global.window_manager, global.window_manager.connect('map',
@@ -94,6 +98,7 @@ export class WindowMemory {
                 window.disconnect(entry.closingId);
                 if (entry.unmaximizedId)
                     window.disconnect(entry.unmaximizedId);
+                this._stopFollowingOpeningSize(window);
             }
             this._windows.clear();
         }
@@ -143,10 +148,11 @@ export class WindowMemory {
         if (this._windows.has(window))
             return;
         const closingId = window.connect('unmanaging', () => {
+            this._stopFollowingOpeningSize(window);
             this._saveOnClose(window);
             this._windows.delete(window); // the window is going away, its connections with it
         });
-        this._windows.set(window, {closingId, arriving, unmaximizedId: 0, savedAt: 0});
+        this._windows.set(window, {closingId, arriving, unmaximizedId: 0, savedAt: 0, openingSizeId: 0, openingSize: null});
     }
 
     /**
@@ -294,19 +300,50 @@ export class WindowMemory {
     /**
      * The size a window opens with is its application's free size until the user changes it
      * (ADR 0015), so it is remembered the moment the window shows, unless the application knows
-     * a free size already or the window does not open free (maximised or full screen).
+     * a free size already or the window does not open free (maximised or full screen). An
+     * application may resize its window right after it showed (restoring its own size, as
+     * Electron applications do); until the user takes hold of the window, or it is tiled,
+     * maximised or closed, the remembered size follows those resizes.
      */
     _rememberOpeningSize(window, key) {
-        if (window.is_maximized() || window.is_fullscreen())
+        if (window.is_maximized() || window.is_fullscreen() ||
+            freeSizeFor(this._places, key) !== null)
             return;
+        const entry = this._windows.get(window);
+        this._storeOpeningSize(window, key);
+        entry.openingSizeId = window.connect('size-changed', () => {
+            if (!this._isMemoryOn() || window.is_maximized() || window.is_fullscreen() ||
+                this._tiledWindows.get(window.get_id()) !== null) {
+                this._stopFollowingOpeningSize(window);
+                return;
+            }
+            const {width, height} = window.get_frame_rect();
+            if (width !== entry.openingSize.width || height !== entry.openingSize.height)
+                this._storeOpeningSize(window, key);
+        });
+    }
+
+    /** Stores the window's frame as the opening size, replacing the one it stored itself before. */
+    _storeOpeningSize(window, key) {
+        const entry = this._windows.get(window);
         const frame = plainRect(window.get_frame_rect());
+        const previous = entry.openingSize;
+        entry.openingSize = {width: frame.width, height: frame.height};
         const remember = () =>
-            this._store(rememberInitialSize(this._places, key, frame, this._monitors()));
+            this._store(rememberInitialSize(this._places, key, frame, this._monitors(), previous));
         // A known application needs no monitor name for this, so its size is there at once.
         if (Object.hasOwn(this._places, key))
             remember();
         else
             this._whenMonitorsKnown(remember);
+    }
+
+    _stopFollowingOpeningSize(window) {
+        const entry = this._windows.get(window);
+        if (entry?.openingSizeId) {
+            window.disconnect(entry.openingSizeId);
+            entry.openingSizeId = 0;
+        }
     }
 
     /**

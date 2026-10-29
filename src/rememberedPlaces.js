@@ -219,11 +219,19 @@ function monitorOf({frame, tile, maximized}, monitors, previous) {
  * already. An unknown application is remembered as a free window with this frame; one whose
  * place is a Tile or maximised, but has no earlier size, keeps that place and gets the size.
  * @param {object[]} monitors as for rememberWindow
+ * @param {?{width: number, height: number}} previous the opening size an earlier call stored for
+ *   this window, when the application resized the window itself after it opened: the size
+ *   counts as unknown as long as it is still that one, so it follows the application, but
+ *   never replaces what the user or another window saved since
  */
-export function rememberInitialSize(places, key, frame, monitors = []) {
-    if (!isFrame(frame) || freeSizeOf(places[key]))
+export function rememberInitialSize(places, key, frame, monitors = [], previous = null) {
+    const known = freeSizeOf(places[key]);
+    const unchanged = known && !(previous && known.width === previous.width && known.height === previous.height);
+    if (!isFrame(frame) || unchanged)
         return places;
     if (!places[key])
+        return rememberWindow(places, key, {frame}, monitors);
+    if (!places[key].tile && !places[key].maximized)
         return rememberWindow(places, key, {frame}, monitors);
     return {...places, [key]: {...places[key], sizeBefore: copySize(frame)}};
 }
