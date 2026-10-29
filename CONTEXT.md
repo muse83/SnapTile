@@ -58,6 +58,11 @@ Two neighbouring thirds combined into one two-thirds Tile by dragging the pointe
 bottom edge from one third into the next. Always exactly two thirds: the one the pointer
 came from and the one it is in now.
 
+**Third shortcuts**:
+The keyboard shortcuts Ctrl+Left, Ctrl+Down and Ctrl+Right, which snap the focused window into
+the left, middle or right third of its monitor. On by default, with a switch in the Extensions
+manager.
+
 **GNOME edge tiling**:
 GNOME's built-in snapping of a dragged window to the left half, right half or whole screen.
 SnapTile replaces it; it must be switched off in the GNOME settings while SnapTile is used.

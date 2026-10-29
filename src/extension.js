@@ -4,6 +4,7 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {DragSnap} from './dragSnap.js';
 import {EdgeTilingHint} from './edgeTilingHint.js';
+import {KeyboardTiling} from './keyboardTiling.js';
 import {MonitorSizes} from './monitorSizes.js';
 import {TiledWindows} from './tiledWindows.js';
 import {WindowLook} from './windowLook.js';
@@ -20,12 +21,17 @@ export default class SnapTileExtension extends Extension {
         this._dragSnap.enable();
         this._windowLook = new WindowLook(this._monitorSizes);
         this._windowLook.enable();
-        this._windowMemory = new WindowMemory(this.getSettings(), this._tiledWindows, this._dragSnap,
+        const settings = this.getSettings();
+        this._windowMemory = new WindowMemory(settings, this._tiledWindows, this._dragSnap,
             this._monitorSizes);
         this._windowMemory.enable();
+        this._keyboardTiling = new KeyboardTiling(settings, this._dragSnap);
+        this._keyboardTiling.enable();
     }
 
     disable() {
+        this._keyboardTiling?.destroy();
+        this._keyboardTiling = null;
         this._windowMemory?.destroy();
         this._windowMemory = null;
         this._windowLook?.destroy();

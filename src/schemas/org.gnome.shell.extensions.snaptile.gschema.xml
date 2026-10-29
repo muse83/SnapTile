@@ -11,5 +11,25 @@
       <summary>Remembered places of application windows</summary>
       <description>The size and position SnapTile remembers per application, as one JSON text. Unreadable text counts as nothing remembered.</description>
     </key>
+    <key name="thirds-shortcuts" type="b">
+      <default>true</default>
+      <summary>Keyboard shortcuts for the thirds</summary>
+      <description>Whether the keyboard shortcuts for the left, middle and right third are active. Off: the keys go to the applications again.</description>
+    </key>
+    <key name="tile-left-third" type="as">
+      <default>['&lt;Control&gt;Left']</default>
+      <summary>Shortcut for the left third</summary>
+      <description>Keyboard shortcut that snaps the focused window into the left third of its monitor. An empty list switches the shortcut off.</description>
+    </key>
+    <key name="tile-middle-third" type="as">
+      <default>['&lt;Control&gt;Down']</default>
+      <summary>Shortcut for the middle third</summary>
+      <description>Keyboard shortcut that snaps the focused window into the middle third of its monitor. An empty list switches the shortcut off.</description>
+    </key>
+    <key name="tile-right-third" type="as">
+      <default>['&lt;Control&gt;Right']</default>
+      <summary>Shortcut for the right third</summary>
+      <description>Keyboard shortcut that snaps the focused window into the right third of its monitor. An empty list switches the shortcut off.</description>
+    </key>
   </schema>
 </schemalist>

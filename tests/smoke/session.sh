@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 197 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 206 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=197
+MAX_RUNTIME=206
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -70,6 +70,7 @@ UUID=snaptile@muse83
 SOURCES='Main.messageTray.getSources().filter(s => s.title === "SnapTile").length'
 NOTE='Main.messageTray.getSources().filter(s => s.title === "SnapTile").flatMap(s => s.notifications.map(n => n.title)).join("|")'
 STATE="Main.extensionManager.lookup('$UUID').state"
+MEM='Main.extensionManager.lookup("'"$UUID"'").stateObj.getSettings()'
 ENABLE="(Main.extensionManager.enableExtension('$UUID'), 1)"
 DISABLE="(Main.extensionManager.disableExtension('$UUID'), 1)"
 ACTIVE=1 # ExtensionState.ACTIVE
@@ -311,6 +312,38 @@ drag_to 640 300
 check "it still remembers its earlier size" '"[400,300]"' "$SIZE"
 button RELEASED
 
+echo "Keyboard shortcuts for the thirds:"
+press_ctrl() { # press_ctrl <keyval>: Control and that key, then both released
+    local ctrl=0xffe3 key state
+    for step in "$ctrl PRESSED" "$1 PRESSED" "$1 RELEASED" "$ctrl RELEASED"; do
+        read -r key state <<<"$step"
+        ev "globalThis.__kbd.notify_keyval(imports.gi.GLib.get_monotonic_time(), $key, imports.gi.Clutter.KeyState.$state), 1" >/dev/null
+    done
+    sleep 0.3
+}
+LEFT=0xff51; DOWN=0xff54; RIGHT=0xff53
+ev "$MEM.reset('thirds-shortcuts'), 1" >/dev/null # the settings of an earlier run may still be there
+start_probe
+ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").activate(global.get_current_time()), 1' >/dev/null
+press_ctrl $LEFT
+check "Ctrl+Left: left third" '"[0,32,427,688]"' "$RECT"
+check "the shared record names the Tile and the size from before" '"third-1 400x300"' "$TILED"
+press_ctrl $DOWN
+check "Ctrl+Down: middle third" '"[427,32,427,688]"' "$RECT"
+press_ctrl $RIGHT
+check "Ctrl+Right: right third" '"[854,32,426,688]"' "$RECT"
+ev "$DISABLE" >/dev/null
+press_ctrl $LEFT
+check "after disabling, the shortcut does nothing" '"[854,32,426,688]"' "$RECT"
+ev "$ENABLE" >/dev/null
+ev "$MEM.set_boolean('thirds-shortcuts', false), 1" >/dev/null
+press_ctrl $LEFT
+check "switched off in the settings: the shortcut does nothing" '"[854,32,426,688]"' "$RECT"
+ev "$MEM.set_boolean('thirds-shortcuts', true), 1" >/dev/null
+press_ctrl $LEFT
+check "switched on again while running: the shortcut works" '"[0,32,427,688]"' "$RECT"
+kill $WINDOW_PID 2>/dev/null
+
 echo "Window that cannot get as small as the Tile (minimum 900x500):"
 start_probe 900x500
 snap "top-left quarter: window anchored at the Tile's top left" 3 3 0,32,640,344 0,32,900,500
@@ -520,7 +553,6 @@ reload_extension() { # the shell may undo an enable a moment after it was seen, 
     done
 }
 reload_extension
-MEM='Main.extensionManager.lookup("'"$UUID"'").stateObj.getSettings()'
 PLACES="Object.entries(JSON.parse($MEM.get_string('places'))).map(([key, entry]) => key + '=' + Object.values(entry.frame)).join(';')"
 store_places() { ev "$MEM.set_string('places', JSON.stringify($1)), 1" >/dev/null; } # store_places <js object>
 set_places() { store_places "$1"; reload_extension; }
@@ -811,14 +843,14 @@ stop_apps
 
 echo "  Window memory: the switch and the clear button in the Extensions manager"
 # The real preferences window is opened in the test shell and driven like a user would: a click
-# into it, then keys. The first control is the switch (Space), the next one the clear button
+# into its title bar (a click further down would hit a row), then keys. The first control is the switch (Space), the next one the clear button
 # (Tab, then Space). Whatever the keys did is read back from the settings.
 check "the switch is on in a fresh install" true "$MEM.get_boolean('enabled')"
 reset_places
 gnome-extensions prefs "$UUID" >/dev/null 2>&1
 await_settled SnapTile
 check "the preferences window opens" 1 "$(titled SnapTile).length"
-PREFS_FRAME=$(ev "JSON.stringify($(titled SnapTile).map(w => { const r = w.get_frame_rect(); return [r.x + r.width / 2, r.y + r.height / 2]; })[0])")
+PREFS_FRAME=$(ev "JSON.stringify($(titled SnapTile).map(w => { const r = w.get_frame_rect(); return [r.x + r.width / 2, r.y + 20]; })[0])")
 move $(echo "$PREFS_FRAME" | tr -d '[]"' | tr ',' ' ' | awk '{print int($1), int($2)}')
 button PRESSED; button RELEASED
 press_key() { # press_key <keysym>: to the focused window, like the keyboard would
@@ -869,6 +901,11 @@ close_window mem-a
 check "a window that was open during the clear stores nothing while switched off" '""' "$PLACES"
 ev "$MEM.set_boolean('enabled', true), 1" >/dev/null
 stop_apps
+check "the switch for the shortcuts of the thirds is on in a fresh install" true "$MEM.get_boolean('thirds-shortcuts')"
+prefs_key $TAB; press_key $TAB; press_key $SPACE # the focus is on the clear row: one Tab into its button, one on to the switch for the thirds
+check "the preferences switch turns the shortcuts of the thirds off" false "$MEM.get_boolean('thirds-shortcuts')"
+press_key $SPACE
+check "the preferences switch turns them on again" true "$MEM.get_boolean('thirds-shortcuts')"
 # kill, not delete: closing asks the window first, and Mutter's warning about that ping names
 # the window ("SnapTile"), which the shell log check below would take for an error of ours.
 ev "$(titled SnapTile).forEach(w => w.kill()), 1" >/dev/null

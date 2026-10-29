@@ -11,6 +11,11 @@ frame shows where it will go, and on release the window snaps there.
 - **Edge zones on every monitor**: each monitor has all its zones on its own, whether you have
   one monitor or five.
 - **Merged thirds**: drag along the bottom edge from one third into the next to get two thirds.
+- **Keyboard shortcuts for the thirds**: Ctrl+Left, Ctrl+Down and Ctrl+Right snap the focused
+  window into the left, middle or right third. On by default; switch them off in the extension's
+  preferences if you need Ctrl+Left and Ctrl+Right for jumping by word in your applications.
+  Other keys can be set with gsettings (`tile-left-third`, `tile-middle-third`,
+  `tile-right-third`).
 - **Window memory**: an application's next window reopens where the last one was (size,
   position, Tile or maximised, and the monitor). A second window opens slightly offset from the
   first. Dialogs are left alone. Switch it off or clear it in the extension's preferences.

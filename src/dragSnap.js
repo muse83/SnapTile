@@ -6,7 +6,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {anchoredOrigin, decideTile} from './tileDecision.js';
+import {anchoredOrigin, decideTile, tileRect} from './tileDecision.js';
 import {TilePreview} from './tilePreview.js';
 
 // How often the pointer is read during a drag. The shell offers no pointer signal while
@@ -154,6 +154,21 @@ export class DragSnap {
         };
         entry.sizeChangedId = window.connect('size-changed', anchor);
         anchor();
+    }
+
+    /**
+     * Puts a window into the named Tile on the monitor it is on, as a keyboard shortcut does.
+     * Does nothing for a window that cannot be tiled. A maximised window has no free size to
+     * give back (its frame is the whole screen), so it gets none; an already tiled one keeps
+     * the size from before its first tiling.
+     */
+    snapToTile(window, tile) {
+        if (!isTileable(window))
+            return;
+        const workArea = this._workAreaOf(window);
+        const frame = window.get_frame_rect();
+        const sizeBefore = window.is_maximized() ? null : {width: frame.width, height: frame.height};
+        this.snapWindow(window, {rect: tileRect(tile, workArea), workArea, tile}, sizeBefore);
     }
 
     _workAreaOf(window) {
