@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 211 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 213 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=211
+MAX_RUNTIME=213
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -612,7 +612,7 @@ stop_apps
 reset_places
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_FULLSCREEN=1
 close_window mem-a
-check "a window that went full screen is not remembered" '""' "$PLACES"
+check "a window that went full screen is remembered by its opening size only" '"org.snaptile.MemA=440,226,400,300"' "$PLACES"
 stop_apps
 
 echo "  Window memory: dialogs are left alone"
@@ -626,7 +626,7 @@ DIALOG_UNTOUCHED='(() => { const frame = n => global.get_window_actors().map(a =
 check "a dialog keeps its own size and sits centred on its window, not at a remembered place" '"300,150,true"' "$DIALOG_UNTOUCHED"
 place_window mem-a 120 90 520 360
 close_window probe-dialog
-check "closing a dialog remembers nothing" '"python3=700,400,333,222"' "$PLACES"
+check "closing a dialog remembers nothing (only the opening size of its window is new)" '"python3=700,400,333,222;org.snaptile.MemA=440,226,400,300"' "$PLACES"
 close_window mem-a
 check "the main window's place is the one remembered, not the dialog's" '"python3=700,400,333,222;org.snaptile.MemA=120,90,520,360"' "$PLACES"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
@@ -702,7 +702,7 @@ reset_places
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
 place_window mem-a 50 100 400 300
 place_window mem-a-2 600 100 400 300
-check "putting a window in place through Mutter saves nothing by itself" '""' "$PLACES"
+check "a window is remembered by its opening size as soon as it shows; putting it in place through Mutter saves nothing more" '"org.snaptile.MemA=440,226,400,300"' "$PLACES"
 drag_title 250 114 0 150
 check "a move is saved as soon as it ends, the window stays open" '"org.snaptile.MemA=50,250,400,300"' "$PLACES"
 drag_title 800 114 0 100
@@ -760,8 +760,18 @@ set_places '{"org.snaptile.MemA": {frame: {x: 640, y: 32, width: 640, height: 68
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 check "a Tile remembered without an earlier size still reopens in the Tile" '"[640,32,640,688]"' "$(frame_of mem-a)"
 close_window mem-a
-check "closing it invents no size from the application's default" '"org.snaptile.MemA=right 640,32,640,688 -"' "$KINDS"
+check "closing it keeps the size the window opened with as the size from before tiling" '"org.snaptile.MemA=right 640,32,640,688 400x300"' "$KINDS"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+drag_title 900 46 -300 250
+check "dragged out, a window gets the size it opened with, not the size of its Tile" '"400x300"' "$(size_of mem-a)"
+stop_apps
+
+# An application that opens maximised shows no free size, so nothing is invented from it.
+set_places '{"org.snaptile.MemA": {frame: {x: 640, y: 32, width: 640, height: 688}, tile: "right"}}'
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
+close_window mem-a
+check "a window that opened maximised invents no size from it" '"org.snaptile.MemA=right 640,32,640,688 -"' "$KINDS"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
 drag_title 900 46 -300 250
 check "dragged out, a window that never had a free size keeps its own size" '"640x688"' "$(size_of mem-a)"
 stop_apps
@@ -781,12 +791,12 @@ check "dragged out after restarts, the window gets the application's free size b
 check "that free size is what is remembered, not the size of the Tile" '"org.snaptile.MemA=free 456,288,520,360 -"' "$KINDS"
 stop_apps
 
-# A window that comes out of a Tile with no size of its own and goes into another Tile did not
-# have its size now before: it is the Tile's size (ADR 0015).
+# A window that comes out of a Tile and goes into another Tile did not have its size now before:
+# it is the Tile's size, the size from before tiling stays the one it opened with (ADR 0015).
 set_places '{"org.snaptile.MemA": {frame: {x: 640, y: 32, width: 640, height: 688}, tile: "right"}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 drag_title 900 46 -897 354 # out of the right Tile, into the left Edge zone
-check "a Tile's size is not taken for the size before tiling when moving from Tile to Tile" '"org.snaptile.MemA=left 0,32,640,688 -"' "$KINDS"
+check "a Tile's size is not taken for the size before tiling when moving from Tile to Tile" '"org.snaptile.MemA=left 0,32,640,688 400x300"' "$KINDS"
 stop_apps
 
 reset_places

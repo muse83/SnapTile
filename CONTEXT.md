@@ -16,10 +16,11 @@ application; the window last moved, resized or closed counts. Has a switch and a
 in the Extensions manager. Dialogs are never part of it.
 
 **Free size**:
-The size an application's window has when it is in no Tile and not maximised. Kept per
-application, also across restarts, and given back to a window that leaves a Tile. Never taken
-from the size of a Tile. Where none is known, a window leaving a Tile keeps the size of the Tile.
-_Avoid_: Default size, normal size
+The size an application's window has when it is in no Tile and not maximised. Starts as the
+size its first window opens with, stays so over restarts and moving windows about, and is
+replaced when the user resizes a window freely. Kept per application and given back to a
+window that leaves a Tile. Never taken from the size of a Tile.
+_Avoid_: Default size, normal size, minimum size
 
 **Second window**:
 A new window of an application that already has an open window. It does not use the Remembered

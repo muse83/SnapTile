@@ -12,6 +12,7 @@ Free size, see CONTEXT.md). It did not, for three reasons:
   which is empty after SnapTile starts. A window that sat in a Tile at that moment (extension
   reloaded, SnapTile updated, tiled by an earlier run) kept the Tile's size when dragged out,
   was then saved as a free window of that size, and the real size was lost for good.
+  Nothing remembered the size a window opened with unless it was moved, resized or closed.
 - A tiled window with no size of its own was saved with none, wiping the free size the
   application had in the stored place.
 - A window dragged from one Tile into another without a known size recorded the old Tile's
@@ -19,10 +20,18 @@ Free size, see CONTEXT.md). It did not, for three reasons:
 
 ## Decisions
 
+- **The size a window opens with is the application's free size.** When a window of an
+  application with no known free size shows (the first time ever, or after only Tile or
+  maximised places were stored without a size), the size it has then is remembered at once,
+  before anything is moved. It stays the application's free size, over restarts and
+  repositioning, until the user moves it away by resizing a window freely; that size then
+  replaces it (maintainer decision, 2026-10-29). A window that opens maximised or full screen
+  shows no free size and is skipped.
 - **The free size belongs to the application, not to a window.** A tiled or maximised window
   that has no earlier size of its own is stored with the one the application already had.
-  The size of a Tile is never stored as a free size. Unchanged: where nothing is known,
-  nothing is invented and the window keeps the Tile's size when dragged out (the fallback).
+  The size of a Tile is never stored as a free size. Where no free size is known at all (an
+  application that so far only opened maximised), nothing is invented and the window keeps the
+  Tile's size when dragged out (the fallback).
 - **Windows already in a Tile when SnapTile starts are adopted.** A window whose frame sits in
   one of the 14 Tiles of its monitor (a few pixels smaller or larger are allowed, for
   applications that resize in steps) is recorded as tiled in it, without being moved, and
@@ -45,6 +54,9 @@ Free size, see CONTEXT.md). It did not, for three reasons:
   keyboard shortcuts would need the same check; once, at start, is enough.
 - Remembering a free size per application separately from the last place. Rejected for now:
   the last place already carries it and a second copy could disagree with it.
+- Taking the opening size only when a window is closed or moved. Rejected by the maintainer:
+  the size of the very first opening is the application's standard and must not depend on
+  what the user does next.
 
 ## Consequences
 
@@ -53,6 +65,8 @@ Free size, see CONTEXT.md). It did not, for three reasons:
   tiled, not as a free window of the Tile's size.
 - A window that was only placed by hand at exactly a Tile's rectangle is treated as tiled
   after a restart. It then gets the application's free size when dragged out.
+- The opening size is read when the window shows. An application that resizes itself right
+  after showing (restoring its own size) is remembered with the size it showed first.
 - Windows whose free size was already overwritten by a Tile's size before this change stay
   that way until the application's window is resized freely once.
 - Not covered, found on the way: a maximised window cannot be dragged into a Tile (it counts

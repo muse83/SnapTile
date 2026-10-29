@@ -5,7 +5,7 @@ import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
+import {appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberInitialSize, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
 
 /**
  * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011, ADR 0012, ADR 0015): remembers the place of an application's window when the
@@ -264,6 +264,7 @@ export class WindowMemory {
         const siblings = this._openWindowsOf(window, key);
         const isSecond = siblings.length > 0;
         const placement = this._placementOf(window, key, siblings);
+        this._rememberOpeningSize(window, key);
         if (placement === null)
             return;
 
@@ -288,6 +289,24 @@ export class WindowMemory {
                 this._put(window, placementNow);
         });
         window.unmaximize();
+    }
+
+    /**
+     * The size a window opens with is its application's free size until the user changes it
+     * (ADR 0015), so it is remembered the moment the window shows, unless the application knows
+     * a free size already or the window does not open free (maximised or full screen).
+     */
+    _rememberOpeningSize(window, key) {
+        if (window.is_maximized() || window.is_fullscreen())
+            return;
+        const frame = plainRect(window.get_frame_rect());
+        const remember = () =>
+            this._store(rememberInitialSize(this._places, key, frame, this._monitors()));
+        // A known application needs no monitor name for this, so its size is there at once.
+        if (Object.hasOwn(this._places, key))
+            remember();
+        else
+            this._whenMonitorsKnown(remember);
     }
 
     /**

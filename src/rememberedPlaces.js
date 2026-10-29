@@ -212,6 +212,22 @@ function monitorOf({frame, tile, maximized}, monitors, previous) {
         remembered(previous.monitor, monitor.workArea) : {};
 }
 
+/**
+ * The places after a window of the application opened (ADR 0015): the size it opens with is the
+ * application's free size from then on, until a window of it is moved or resized by the user.
+ * Nothing changes (the given places are returned) when the application's free size is known
+ * already. An unknown application is remembered as a free window with this frame; one whose
+ * place is a Tile or maximised, but has no earlier size, keeps that place and gets the size.
+ * @param {object[]} monitors as for rememberWindow
+ */
+export function rememberInitialSize(places, key, frame, monitors = []) {
+    if (!isFrame(frame) || freeSizeOf(places[key]))
+        return places;
+    if (!places[key])
+        return rememberWindow(places, key, {frame}, monitors);
+    return {...places, [key]: {...places[key], sizeBefore: copySize(frame)}};
+}
+
 /** The places after a free window of the application was last moved, resized or closed. */
 export function rememberFree(places, key, frame) {
     return rememberWindow(places, key, {frame});

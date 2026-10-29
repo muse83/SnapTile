@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {TILES, tileRect} from '../../src/tileDecision.js';
-import {MAX_APPLICATIONS, appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberFree, rememberOnClose, rememberWindow, serialisePlaces} from '../../src/rememberedPlaces.js';
+import {MAX_APPLICATIONS, appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberFree, rememberInitialSize, rememberOnClose, rememberWindow, serialisePlaces} from '../../src/rememberedPlaces.js';
 
 const FRAME = {x: 100, y: 120, width: 800, height: 600};
 const WORK = {x: 0, y: 32, width: 1920, height: 1048};
@@ -762,4 +762,41 @@ test('the free size handed out is a copy', () => {
     const places = {a: {frame: FRAME}};
     freeSizeFor(places, 'a').width = 1;
     assert.equal(places.a.frame.width, FRAME.width);
+});
+
+// --- the size a window has when it first opens ---
+
+test('the first window of an unknown application is remembered by the size it opens with', () => {
+    const places = rememberInitialSize({}, 'a', FRAME);
+    assert.deepEqual(places, {a: {frame: FRAME}});
+    assert.deepEqual(freeSizeFor(places, 'a'), {width: FRAME.width, height: FRAME.height});
+});
+
+test('the opening size comes with the monitor, like any free window', () => {
+    const monitors = [{id: 'DP-1', workArea: WORK}];
+    const places = rememberInitialSize({}, 'a', FRAME, monitors);
+    assert.deepEqual(places.a, {frame: FRAME, monitor: 'DP-1', offset: {x: FRAME.x - WORK.x, y: FRAME.y - WORK.y}});
+});
+
+test('a size already known is never replaced by the opening size', () => {
+    const free = {a: {frame: FRAME}};
+    assert.equal(rememberInitialSize(free, 'a', {...FRAME, width: 300, height: 200}), free);
+    const tiled = {a: {frame: LEFT_TILE, tile: 'left', sizeBefore: SIZE_BEFORE}};
+    assert.equal(rememberInitialSize(tiled, 'a', FRAME), tiled);
+});
+
+test('a Tile or maximised place without a size gets the opening size and is otherwise left as it is', () => {
+    const tiled = {other: {frame: FRAME}, a: {frame: LEFT_TILE, tile: 'left', monitor: 'DP-1'}};
+    const places = rememberInitialSize(tiled, 'a', FRAME);
+    assert.deepEqual(places.a, {frame: LEFT_TILE, tile: 'left', monitor: 'DP-1', sizeBefore: {width: FRAME.width, height: FRAME.height}});
+    assert.deepEqual(Object.keys(places), ['other', 'a']);
+    assert.equal(tiled.a.sizeBefore, undefined);
+
+    const maximised = rememberInitialSize({a: {frame: WORK, maximized: true}}, 'a', FRAME);
+    assert.deepEqual(maximised.a.sizeBefore, {width: FRAME.width, height: FRAME.height});
+});
+
+test('a frame without a size is not remembered as the opening size', () => {
+    const places = {};
+    assert.equal(rememberInitialSize(places, 'a', {...FRAME, width: 0}), places);
 });
