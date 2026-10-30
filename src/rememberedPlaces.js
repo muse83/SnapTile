@@ -15,6 +15,9 @@
 //   {frame, maximized: true, sizeBefore?}  a window maximised with the window button; the frame
 //                                        is the last position, as a fallback for the monitor
 // sizeBefore is {width, height}. An unknown free size is never invented: it is left out.
+// The free size of an application (ADR 0016) is the size of its free entry, or the sizeBefore of
+// the others. Only rememberWindow with `resized` and rememberInitialSize replace it; moving,
+// closing, tiling and disabling keep it, whatever size the window has at that moment.
 // Each of them may also hold `monitor`, the id of the monitor the window was on (see ADR 0012),
 // and a free window `offset`, {x, y}: its position relative to that monitor's work area. Both
 // are left out when the monitor had no id; the frame is then all that tells the monitor.
@@ -152,13 +155,20 @@ export function freeSizeFor(places, key) {
 /**
  * The places after a window of the application was last moved, resized or closed. The
  * application becomes the most recently used one. The given places are not changed. A state
- * without a frame size, or with a name that is no Tile, is ignored. A tiled or maximised window
- * without an earlier size of its own keeps the free size the application had before.
- * @param {{frame: object, tile?: string, maximized?: boolean, sizeBefore?: ?object}} state
- *   what the window is: a free window has only a frame; a tiled one the Tile, the Tile's
- *   rectangle as frame and the size from before tiling (null or left out if none is known); a
- *   maximised one the flag and its frame. A maximised window without a size of its own keeps
- *   the free size the application had before, so closing it maximised does not lose that size.
+ * without a frame size, or with a name that is no Tile, is ignored.
+ *
+ * The free size is the application's, not the window's (ADR 0016): once one is known, it is kept
+ * whatever size the window has now, so a window that was shrunk to fit a smaller monitor, grew by
+ * itself, sits in a GNOME half or closes mid-resize cannot replace it. Only a window the user
+ * freely resized (`resized`) does. A free window is then remembered at its position with the
+ * known free size; a tiled or maximised one with the known free size as its size before tiling.
+ * Where none is known, the window's own is taken (its size before tiling, if it has one).
+ * @param {{frame: object, tile?: string, maximized?: boolean, sizeBefore?: ?object,
+ *   resized?: boolean}} state
+ *   what the window is: a free window has only a frame, and `resized` if the user has just
+ *   resized it freely (not from a Tile or maximised, not a move); a tiled one the Tile, the
+ *   Tile's rectangle as frame and the size from before tiling (null or left out if none is
+ *   known); a maximised one the flag and its frame
  * @param {{id: ?string, workArea: object}[]} monitors the monitors now, to remember the one the
  *   window is on (the one whose work area is nearest to the centre of its frame) by its id and,
  *   for a free window, the position relative to it. A monitor without an id cannot be
@@ -172,13 +182,13 @@ export function rememberWindow(places, key, state, monitors = []) {
     if (state.tile !== undefined && !TILES.includes(state.tile))
         return places;
 
-    // A tiled or maximised window with no earlier size of its own does not wipe the free size the
-    // application had: that size is the application's, not the window's (ADR 0015).
-    const sizeBefore = state.maximized || state.tile !== undefined ?
-        state.sizeBefore ?? freeSizeOf(places[key]) : state.sizeBefore;
+    const known = freeSizeOf(places[key]);
+    const free = !state.maximized && state.tile === undefined;
+    const sizeBefore = free ? undefined : known ?? state.sizeBefore;
+    const frame = free && known && !state.resized ? {...state.frame, ...known} : state.frame;
     const result = {...places};
     delete result[key]; // re-insert, so the most recently used application stays last
-    result[key] = entryOf({...state, sizeBefore, ...monitorOf(state, monitors, places[key])});
+    result[key] = entryOf({...state, frame, sizeBefore, ...monitorOf({...state, frame}, monitors, places[key])});
     return keepMostRecent(result);
 }
 
@@ -229,16 +239,17 @@ export function rememberInitialSize(places, key, frame, monitors = [], previous 
     const unchanged = known && !(previous && known.width === previous.width && known.height === previous.height);
     if (!isFrame(frame) || unchanged)
         return places;
-    if (!places[key])
-        return rememberWindow(places, key, {frame}, monitors);
-    if (!places[key].tile && !places[key].maximized)
-        return rememberWindow(places, key, {frame}, monitors);
+    if (!places[key] || (!places[key].tile && !places[key].maximized))
+        return rememberWindow(places, key, {frame, resized: true}, monitors);
     return {...places, [key]: {...places[key], sizeBefore: copySize(frame)}};
 }
 
-/** The places after a free window of the application was last moved, resized or closed. */
-export function rememberFree(places, key, frame) {
-    return rememberWindow(places, key, {frame});
+/**
+ * The places after a free window of the application was last moved, resized or closed.
+ * @param {boolean} resized whether the user freely resized it, as for rememberWindow
+ */
+export function rememberFree(places, key, frame, resized = false) {
+    return rememberWindow(places, key, {frame, resized});
 }
 
 /**

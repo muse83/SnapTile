@@ -17,9 +17,9 @@ in the Extensions manager. Dialogs are never part of it.
 
 **Free size**:
 The size an application's window has when it is in no Tile and not maximised. Starts as the
-size its first window opens with, stays so over restarts and moving windows about, and is
-replaced when the user resizes a window freely. Kept per application and given back to a
-window that leaves a Tile. Never taken from the size of a Tile.
+size its first window opens with and is replaced only when the user resizes a free window (see
+ADR 0016). Kept per application and given back to a window that leaves a Tile. Never taken from
+the size of a Tile.
 _Avoid_: Default size, normal size, minimum size
 
 **Second window**:

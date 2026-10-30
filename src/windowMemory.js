@@ -5,14 +5,19 @@ import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {tileOfFrame} from './tileDecision.js';
 import {appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberInitialSize, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
 
 // The application of the Extensions manager; its windows include the preferences window of this
 // extension, which runs in another process and must stay open while it closes the others.
 const EXTENSIONS_APP_ID = 'org.gnome.Shell.Extensions';
 
+// Every grab that resizes a window, by mouse or keyboard (GNOME 50 and 51 name them alike).
+const RESIZE_OPS = new Set(Object.entries(Meta.GrabOp)
+    .filter(([name]) => name.includes('RESIZING')).map(([, op]) => op));
+
 /**
- * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011, ADR 0012, ADR 0015): remembers the place of an application's window when the
+ * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011, ADR 0012, ADR 0015, ADR 0016): remembers the place of an application's window when the
  * user finishes moving or resizing it, when it closes and when the extension is disabled, and
  * puts the next new window of that application there: the size and position of a free window,
  * the Tile of a tiled one (through the drag's own snap path), or maximised. A new window of an
@@ -55,7 +60,9 @@ export class WindowMemory {
         // not even when it closes, until the user moves or resizes it again (see
         // _forgetOpenWindows); openingSizeId is the connection that follows an application
         // resizing its new window and openingSize the size it last stored (see
-        // _rememberOpeningSize).
+        // _rememberOpeningSize); grab is what the window was when the user took hold of it,
+        // {free, size, op}, to tell a free resize (the only thing that replaces the application's
+        // free size, ADR 0016) from a move or a resize out of a Tile.
         this._windows = new Map();
         this._saves = 0;
         // Saves that wait for the monitors' names, in order: functions that store the place.
@@ -86,9 +93,9 @@ export class WindowMemory {
             [global.display, global.display.connect('window-created',
                 (display, window) => this._watch(window, true))],
             [global.display, global.display.connect('grab-op-begin',
-                (display, window) => this._stopFollowingOpeningSize(window))],
+                (display, window, op) => this._onGrabBegin(window, op))],
             [global.display, global.display.connect('grab-op-end',
-                (display, window) => this._saveAfterGrab(window))],
+                (display, window, op) => this._saveAfterGrab(window, op))],
             [global.window_manager, global.window_manager.connect('map',
                 (manager, actor) => this._place(actor.meta_window))]);
     }
@@ -197,7 +204,7 @@ export class WindowMemory {
             this._saveOnClose(window);
             this._windows.delete(window); // the window is going away, its connections with it
         });
-        this._windows.set(window, {closingId, arriving, unmaximizedId: 0, savedAt: 0, forgotten: false, openingSizeId: 0, openingSize: null});
+        this._windows.set(window, {closingId, arriving, unmaximizedId: 0, savedAt: 0, forgotten: false, openingSizeId: 0, openingSize: null, grab: null});
     }
 
     /**
@@ -224,15 +231,47 @@ export class WindowMemory {
     }
 
     /**
+     * The user took hold of a window to move or resize it. Notes what it is now: only a window
+     * that is free (in no Tile, not maximised, not in a GNOME half) can have its size replaced
+     * by the user resizing it (ADR 0016). Drag-to-snap has already let go of a tiled window when
+     * a resize starts, so a Tile is told by the window's frame, as when SnapTile starts.
+     */
+    _onGrabBegin(window, op) {
+        this._stopFollowingOpeningSize(window);
+        const entry = this._windows.get(window);
+        if (!entry)
+            return;
+        const {width, height} = window.get_frame_rect();
+        entry.grab = {free: this._isFree(window), size: {width, height}, op};
+    }
+
+    /** Whether the window sits in no Tile and is not maximised, in a GNOME half or full screen. */
+    _isFree(window) {
+        if (isMaximizedOrHalf(window) || window.is_fullscreen() || this._tiledWindows.get(window.get_id()))
+            return false;
+        const monitor = window.get_monitor();
+        return monitor < 0 || tileOfFrame(plainRect(window.get_frame_rect()),
+            plainRect(Main.layoutManager.getWorkAreaForMonitor(monitor))) === null;
+    }
+
+    /**
      * The user let go of a window after moving or resizing it (mouse or keyboard). Drag-to-snap
      * handles the same signal first (it is enabled first) and records a snapped window as
-     * tiled, so a drop into a Tile is saved as that Tile and not as a free place.
+     * tiled, so a drop into a Tile is saved as that Tile and not as a free place. The size is
+     * saved as the application's free size only if a free window was resized (ADR 0016).
      */
-    _saveAfterGrab(window) {
+    _saveAfterGrab(window, op) {
         const entry = this._windows.get(window);
+        const grab = entry?.grab;
+        if (entry)
+            entry.grab = null;
         const found = entry && this._isMemoryOn() && this._stateOf(window);
         if (!found)
             return;
+        if (grab?.free && (RESIZE_OPS.has(op) || RESIZE_OPS.has(grab.op))) {
+            const {width, height} = window.get_frame_rect();
+            found.state.resized = width !== grab.size.width || height !== grab.size.height;
+        }
         entry.forgotten = false;
         entry.savedAt = ++this._saves;
         this._whenMonitorsKnown(() =>
@@ -353,13 +392,13 @@ export class WindowMemory {
      * maximised or closed, the remembered size follows those resizes.
      */
     _rememberOpeningSize(window, key) {
-        if (window.is_maximized() || window.is_fullscreen() ||
+        if (isMaximizedOrHalf(window) || window.is_fullscreen() ||
             freeSizeFor(this._places, key) !== null)
             return;
         const entry = this._windows.get(window);
         this._storeOpeningSize(window, key);
         entry.openingSizeId = window.connect('size-changed', () => {
-            if (!this._isMemoryOn() || window.is_maximized() || window.is_fullscreen() ||
+            if (!this._isMemoryOn() || isMaximizedOrHalf(window) || window.is_fullscreen() ||
                 this._tiledWindows.get(window.get_id()) !== null) {
                 this._stopFollowingOpeningSize(window);
                 return;
@@ -481,6 +520,12 @@ function factsOf(window) {
         wmClass: window.get_wm_class(),
         gtkWindowPath: window.get_gtk_window_object_path(),
     };
+}
+
+// Maximised, or in one of GNOME's own halves (Mutter sees those as maximised in one direction).
+// Their size is the screen's, never the window's own.
+function isMaximizedOrHalf(window) {
+    return window.is_maximized() || window.maximized_horizontally || window.maximized_vertically;
 }
 
 function plainRect({x, y, width, height}) {

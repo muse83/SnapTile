@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 221 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 226 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=221
+MAX_RUNTIME=226
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -841,6 +841,38 @@ close_window mem-a
 check "closing a window maximised with the window button remembers the flag and the free size" '"org.snaptile.MemA=maximized 0,32,1280,688 520x360"' "$KINDS"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 check "the application's next window reopens maximised" '"true|[0,32,1280,688]"' "[$(titled mem-a)[0].is_maximized(), $(frame_of mem-a)].join('|')"
+stop_apps
+
+echo "  Window memory: the free size changes only when the user resizes a free window (ADR 0016)"
+# A window gets another size without the user resizing it (here through Mutter, as an application
+# or the shell would): moving it must not make that size the application's.
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+drag_title 640 240 0 40 # the user takes hold of the window: its opening size is fixed now
+place_window mem-a 50 100 520 360
+drag_title 250 114 0 50
+check "moving a window of another size keeps the application's free size" '"org.snaptile.MemA=50,150,400,300"' "$PLACES"
+drag_title 572 512 30 20 # the bottom right corner: a free resize by the user
+check "resizing a free window replaces the free size" '"org.snaptile.MemA=50,150,550,380"' "$PLACES"
+stop_apps
+
+# GNOME's own half (Super+Left) is a size the screen gave the window, not the application's.
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+press_with $SUPER $LEFT
+await_true "$(titled mem-a)[0].maximized_vertically"
+check "a window put into GNOME's half does not make the half its opening size" '"org.snaptile.MemA=440,226,400,300"' "$PLACES"
+close_window mem-a
+check "closing it in the half keeps the free size" '"org.snaptile.MemA=0,32,400,300"' "$PLACES"
+stop_apps
+
+# Resizing a window that sits in a Tile is not a free resize.
+reset_places
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+drag_title 640 240 0 40
+drag_title 450 280 -447 120 # into the left Edge zone: the left half
+drag_title 642 400 100 0 # the right edge of the Tile
+check "resizing a window out of a Tile keeps the free size" '"org.snaptile.MemA=0,32,400,300"' "$PLACES"
 stop_apps
 
 echo "  Window memory: a Tile is reached also by windows that fight it, and by those that do not fit"

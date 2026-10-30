@@ -34,7 +34,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 ## Smoke test maximum runtime
 
 The whole smoke test (`tests/smoke/run.sh`, both GNOME versions in parallel) may take at most
-`MAX_RUNTIME` seconds, set at the top of `tests/smoke/session.sh`: 221 seconds now. The run fails
+`MAX_RUNTIME` seconds, set at the top of `tests/smoke/session.sh`: 226 seconds now. The run fails
 when it takes longer. **A single check has no time limit of its own**; a check may take longer
 than one second. Every new check raises `MAX_RUNTIME` by one second and by no more; if the run
 is still too slow, speed up other checks, never raise the maximum further. Each check prints how

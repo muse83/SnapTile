@@ -1,6 +1,7 @@
 # The free size of an application survives Tiles and restarts
 
-Status: accepted (2026-10-29). Builds on ADR 0006, 0008 and 0010; found when windows left a
+Status: accepted (2026-10-29), refined by ADR 0016 (what counts as the user changing the free
+size). Builds on ADR 0006, 0008 and 0010; found when windows left a
 Tile either at a size far too small or at the size of the Tile.
 
 ## Problem
