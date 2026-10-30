@@ -70,6 +70,13 @@ The keyboard shortcuts Ctrl+Left, Ctrl+Down and Ctrl+Right, which snap the focus
 the left, middle or right third of its monitor. On by default, with a switch in the Extensions
 manager.
 
+**GNOME half**:
+The left or right half of the screen that a window gets from GNOME's own shortcuts Super+Left
+and Super+Right (Mutter sees it as maximised in one direction only). Not a Tile. The Third
+shortcuts tile such a window anyway; making Window memory treat it like the left or right half
+Tile is planned.
+_Avoid_: Tile (reserved for SnapTile's 14 areas)
+
 **GNOME edge tiling**:
 GNOME's built-in snapping of a dragged window to the left half, right half or whole screen.
 SnapTile replaces it; it must be switched off in the GNOME settings while SnapTile is used.

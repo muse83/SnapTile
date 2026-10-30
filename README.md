@@ -12,7 +12,8 @@ frame shows where it will go, and on release the window snaps there.
   one monitor or five.
 - **Merged thirds**: drag along the bottom edge from one third into the next to get two thirds.
 - **Keyboard shortcuts for the thirds**: Ctrl+Left, Ctrl+Down and Ctrl+Right snap the focused
-  window into the left, middle or right third. On by default; switch them off in the extension's
+  window into the left, middle or right third, also a maximised window or one that GNOME put
+  into a half with Super+Left/Right. On by default; switch them off in the extension's
   preferences if you need Ctrl+Left and Ctrl+Right for jumping by word in your applications.
   Other keys can be set with gsettings (`tile-left-third`, `tile-middle-third`,
   `tile-right-third`).
