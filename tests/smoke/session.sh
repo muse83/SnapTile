@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 219 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 221 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=219
+MAX_RUNTIME=221
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -890,10 +890,12 @@ stop_apps
 echo "  Window memory: a tiled window is saved when the extension is disabled"
 set_places "$LEFT_TILE"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-store_places '{}' # behind the extension's back: it follows, so only saving the open window can bring the Tile back
-check "the stored places are empty" '""' "$KINDS"
+# Another application's place is stored behind the extension's back (an empty text would count as
+# a clear): the extension follows, so only saving the open window can bring the Tile back.
+store_places '{"org.snaptile.MemB": {frame: {x: 5, y: 40, width: 300, height: 200}}}'
+check "the stored places no longer hold the window's Tile" '"org.snaptile.MemB=free 5,40,300,200 -"' "$KINDS"
 ev "$DISABLE" >/dev/null
-check "disabling saves the open tiled window with its Tile and earlier size" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
+check "disabling saves the open tiled window with its Tile and earlier size" '"org.snaptile.MemB=free 5,40,300,200 -;org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
 ev "$ENABLE" >/dev/null
 stop_apps
 
@@ -923,9 +925,11 @@ prefs_key() { # prefs_key <keysym>: back to the preferences window first (openin
 SPACE=0x20
 TAB=0xff09
 ESCAPE=0xff1b
-confirm_clear() { # the dialog has the focus on Cancel: one Tab on to Clear
-    press_key $TAB; press_key $SPACE
-}
+# The dialog has three answers and a narrow window shows them one above the other, "Clear and
+# close all windows" first, "Clear" second, "Cancel" last, which is also the Tab order. The focus
+# starts on Cancel and the first Tab leaves the dialog's buttons, so Clear is three Tabs away.
+confirm_clear() { press_key $TAB; press_key $TAB; press_key $TAB; press_key $SPACE; }
+choose_clear_and_close() { press_key $TAB; press_key $TAB; press_key $SPACE; } # also the way to "Close all windows" in the second dialog
 
 set_places "$MEM_A"
 prefs_key $SPACE
@@ -954,7 +958,7 @@ prefs_key $SPACE # the clear button still has the focus
 confirm_clear
 check "the clear button empties the stored data" '""' "$PLACES"
 close_window mem-a
-check "closing the window after the clear brings back only its own place, not the cleared data" '"org.snaptile.MemA=200,120,500,350"' "$PLACES"
+check "a window that was open during the clear stores nothing when it closes" '""' "$PLACES"
 stop_apps
 
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
@@ -966,6 +970,17 @@ ev "$MEM.set_boolean('enabled', false), 1" >/dev/null
 close_window mem-a
 check "a window that was open during the clear stores nothing while switched off" '""' "$PLACES"
 ev "$MEM.set_boolean('enabled', true), 1" >/dev/null
+stop_apps
+
+# Third answer of the dialog: clear and close all windows, asked a second time on its own.
+set_places "$MEM_A"
+start_app mem-a PROBE_APP_ID=org.snaptile.MemA
+prefs_key $SPACE
+choose_clear_and_close
+check "closing all windows is asked a second time: nothing is closed or removed yet" '"1 org.snaptile.MemA=120,90,520,360"' "$(titled mem-a).length + ' ' + $PLACES"
+press_key $TAB; press_key $TAB; press_key $SPACE # the second dialog also stacks its answers: Close is two Tabs from Cancel
+for _ in $(seq 15); do [ "$(ev "$(titled mem-a).length")" = 0 ] && break; sleep 0.2; done
+check "clear and close all windows empties the stored data and closes the window, the preferences window stays" '"0 1  false"' "$(titled mem-a).length + ' ' + $(titled SnapTile).length + ' ' + $PLACES + ' ' + $MEM.get_boolean('close-all-windows')"
 stop_apps
 check "the switch for the shortcuts of the thirds is on in a fresh install" true "$MEM.get_boolean('thirds-shortcuts')"
 prefs_key $TAB; press_key $TAB; press_key $SPACE # the focus is on the clear row: one Tab into its button, one on to the switch for the thirds

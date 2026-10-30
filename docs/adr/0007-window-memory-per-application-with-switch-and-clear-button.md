@@ -73,9 +73,21 @@ Status: accepted (2026-10-23, maintainer decision in a grilling session). Spec: 
   change of the stored text that is not its own write, replaces its in-memory copy and forgets
   which open window saved last, so a window open during the clear stores its place anew when
   it closes (while the switch is on). The clear button first asked no confirmation (what it
-  removes is only window places, which rebuild by use); since 2026-10-30 it opens a dialog
-  that says what is removed and needs a second click on "Clear" (maintainer decision), so a
-  mis-click cannot lose all places. The dialog's default is "Cancel", so Enter alone never clears.
+  removes is only window places, which rebuild by use). Since 2026-10-30 (maintainer decisions)
+  it opens a dialog with three answers: "Cancel" (the default, so Enter alone never clears),
+  "Clear", and "Clear and close all windows", which asks a second time on its own because
+  closing can lose unsaved work. Also since then a window that is open during a clear forgets
+  what it would save: it stores nothing, not even when it closes, until the user moves or
+  resizes it (this replaces "stores its place anew when it closes" above). Reason: the clear
+  must not be refilled by the windows open at that moment. The extension treats any change of
+  the stored text to "nothing" as a clear, so a hand edit to an empty text does the same.
+- Closing all windows: the preferences window sets a request in the settings
+  (`close-all-windows`) and clears the places itself. The running extension answers the request
+  by asking every normal window to close the way its close button does (applications may ask
+  about unsaved work or refuse; a window that stays open saves nothing as said above) and
+  resets the request at once. The windows of the Extensions manager, which include the
+  preferences window, stay. A request found when the extension starts is dropped, so a request
+  made while it was off closes nothing later. Windows are asked, never killed.
 - Known limit of the clear button: the extension learns of the clear through a change signal,
   not in the same instant. A window that closes in that fraction of a second would write the
   old places back over the cleared text. Not guarded; the user can press the button again.

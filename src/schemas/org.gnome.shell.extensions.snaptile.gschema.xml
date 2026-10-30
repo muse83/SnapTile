@@ -11,6 +11,11 @@
       <summary>Remembered places of application windows</summary>
       <description>The size and position SnapTile remembers per application, as one JSON text. Unreadable text counts as nothing remembered.</description>
     </key>
+    <key name="close-all-windows" type="b">
+      <default>false</default>
+      <summary>Request to close all windows</summary>
+      <description>Set by the preferences window when the user clears the memory and chooses to close all windows. The running extension closes the windows and sets it back to false at once; a request found at start is dropped.</description>
+    </key>
     <key name="thirds-shortcuts" type="b">
       <default>true</default>
       <summary>Keyboard shortcuts for the thirds</summary>

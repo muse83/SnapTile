@@ -7,6 +7,10 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {appKeyOf, freeSizeFor, parsePlaces, placementFor, placementForSecondWindow, rememberInitialSize, rememberOnClose, rememberWindow, serialisePlaces} from './rememberedPlaces.js';
 
+// The application of the Extensions manager; its windows include the preferences window of this
+// extension, which runs in another process and must stay open while it closes the others.
+const EXTENSIONS_APP_ID = 'org.gnome.Shell.Extensions';
+
 /**
  * Window memory (ADR 0007, ADR 0009, ADR 0010, ADR 0011, ADR 0012, ADR 0015): remembers the place of an application's window when the
  * user finishes moving or resizing it, when it closes and when the extension is disabled, and
@@ -43,10 +47,12 @@ export class WindowMemory {
         this._places = {};
         this._signals = [];
         // Every window watched until it closes: {closingId, arriving, unmaximizedId, savedAt,
-        // openingSizeId, openingSize}. Arriving marks a window created since enable that is not
+        // forgotten, openingSizeId, openingSize}. Arriving marks a window created since enable that is not
         // placed yet; unmaximizedId is the wait for a window that maximised itself to say it has
         // its free size back; savedAt is when the window last saved its place (a number from
-        // _saves, 0: never), to tell which of an application's windows saved last;
+        // _saves, 0: never), to tell which of an application's windows saved last; forgotten
+        // marks a window that was open when the memory was cleared: it saves nothing, not even
+        // when it closes, until the user moves or resizes it again (see _forgetOpenWindows);
         // openingSizeId is the connection that follows an application resizing its new window
         // and openingSize the size it last stored (see _rememberOpeningSize).
         this._windows = new Map();
@@ -67,9 +73,15 @@ export class WindowMemory {
 
         this._monitorSizes.whenSettled(() => this._runWaiting());
 
+        // A request made while the extension was off is stale now and must not close anything.
+        if (this._settings.get_boolean('close-all-windows'))
+            this._settings.set_boolean('close-all-windows', false);
+
         this._signals.push(
             [this._settings, this._settings.connect('changed::places',
                 () => this._followStoredPlaces())],
+            [this._settings, this._settings.connect('changed::close-all-windows',
+                () => this._closeAllWindows())],
             [global.display, global.display.connect('window-created',
                 (display, window) => this._watch(window, true))],
             [global.display, global.display.connect('grab-op-begin',
@@ -142,6 +154,38 @@ export class WindowMemory {
         // that its siblings must respect when they close.
         for (const entry of this._windows.values())
             entry.savedAt = 0;
+        if (Object.keys(this._places).length === 0)
+            this._forgetOpenWindows(); // cleared: the open windows must not fill it again
+    }
+
+    /**
+     * The memory was cleared: every window that is open now forgets what it would have saved.
+     * It saves nothing again, also not when it closes, until the user moves or resizes it.
+     */
+    _forgetOpenWindows() {
+        for (const [window, entry] of this._windows) {
+            entry.forgotten = true;
+            this._stopFollowingOpeningSize(window);
+        }
+    }
+
+    /**
+     * The preferences window asks to clear the memory and close every window (it clears the
+     * stored places itself). The windows are asked to close the way their close button does, so
+     * an application may still ask about unsaved work or refuse; one that stays open saves
+     * nothing until the user moves it. The preferences window of another process stays.
+     */
+    _closeAllWindows() {
+        if (!this._settings.get_boolean('close-all-windows'))
+            return;
+        this._settings.set_boolean('close-all-windows', false);
+        this._forgetOpenWindows();
+        for (const actor of global.get_window_actors()) {
+            const window = actor.meta_window;
+            if (window.get_window_type() === Meta.WindowType.NORMAL &&
+                window.get_gtk_application_id() !== EXTENSIONS_APP_ID)
+                window.delete(global.get_current_time());
+        }
     }
 
     _watch(window, arriving) {
@@ -152,7 +196,7 @@ export class WindowMemory {
             this._saveOnClose(window);
             this._windows.delete(window); // the window is going away, its connections with it
         });
-        this._windows.set(window, {closingId, arriving, unmaximizedId: 0, savedAt: 0, openingSizeId: 0, openingSize: null});
+        this._windows.set(window, {closingId, arriving, unmaximizedId: 0, savedAt: 0, forgotten: false, openingSizeId: 0, openingSize: null});
     }
 
     /**
@@ -188,6 +232,7 @@ export class WindowMemory {
         const found = entry && this._isMemoryOn() && this._stateOf(window);
         if (!found)
             return;
+        entry.forgotten = false;
         entry.savedAt = ++this._saves;
         this._whenMonitorsKnown(() =>
             this._store(rememberWindow(this._places, found.key, found.state, this._monitors())));
@@ -196,7 +241,7 @@ export class WindowMemory {
     /** A window closes: its place counts unless another window of the application saved later. */
     _saveOnClose(window) {
         const entry = this._windows.get(window);
-        const found = this._isMemoryOn() && this._stateOf(window);
+        const found = this._isMemoryOn() && !entry.forgotten && this._stateOf(window);
         if (!found)
             return;
         const others = [...this._windows]
@@ -238,7 +283,8 @@ export class WindowMemory {
         };
         const monitors = this._monitors();
         let places = this._places;
-        for (const window of [...this._windows.keys()].sort((a, b) => rank(b) - rank(a))) {
+        const saving = [...this._windows.keys()].filter(window => !this._windows.get(window).forgotten);
+        for (const window of saving.sort((a, b) => rank(b) - rank(a))) {
             const found = this._stateOf(window);
             if (found)
                 places = rememberWindow(places, found.key, found.state, monitors);
