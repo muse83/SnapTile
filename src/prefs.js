@@ -7,8 +7,9 @@ import Gio from 'gi://Gio';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 /**
- * The preferences window (ADR 0007): the one switch and the one button that window memory has,
- * and the switch for the keyboard shortcuts of the thirds (ADR 0014).
+ * The preferences window (ADR 0007): the one switch and the one button (which asks to confirm
+ * first) that window memory has, and the switch for the keyboard shortcuts of the thirds
+ * (ADR 0014).
  * The window runs in its own process; the running extension notices a cleared memory through
  * the settings it shares with this window.
  */
@@ -28,8 +29,23 @@ export default class SnapTilePreferences extends ExtensionPreferences {
             css_classes: ['destructive-action'],
         });
         clear.connect('clicked', () => {
-            settings.reset('places');
-            Gio.Settings.sync(); // this process may be closed right after the click
+            const confirm = new Adw.AlertDialog({
+                heading: 'Forget all remembered windows?',
+                body: 'Every remembered size, position and Tile of all applications is removed. ' +
+                    'This cannot be undone.',
+            });
+            confirm.add_response('cancel', 'Cancel');
+            confirm.add_response('clear', 'Clear');
+            confirm.set_response_appearance('clear', Adw.ResponseAppearance.DESTRUCTIVE);
+            confirm.set_default_response('cancel'); // Enter alone never deletes
+            confirm.set_close_response('cancel');
+            confirm.connect('response', (dialog, response) => {
+                if (response !== 'clear')
+                    return;
+                settings.reset('places');
+                Gio.Settings.sync(); // this process may be closed right after the click
+            });
+            confirm.present(window);
         });
         const clearRow = new Adw.ActionRow({
             title: 'Forget all remembered windows',

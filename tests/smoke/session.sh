@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 217 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 219 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=217
+MAX_RUNTIME=219
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -922,6 +922,10 @@ prefs_key() { # prefs_key <keysym>: back to the preferences window first (openin
 }
 SPACE=0x20
 TAB=0xff09
+ESCAPE=0xff1b
+confirm_clear() { # the dialog has the focus on Cancel: one Tab on to Clear
+    press_key $TAB; press_key $SPACE
+}
 
 set_places "$MEM_A"
 prefs_key $SPACE
@@ -943,6 +947,11 @@ place_window mem-a 200 120 500 350
 # Another application's place is stored behind the extension's back, which it must follow.
 store_places '{"org.snaptile.MemB": {frame: {x: 5, y: 40, width: 300, height: 200}}, "org.snaptile.MemA": {frame: {x: 120, y: 90, width: 520, height: 360}}}'
 prefs_key $TAB; press_key $SPACE
+check "the clear button removes nothing before it is confirmed" '"org.snaptile.MemB=5,40,300,200;org.snaptile.MemA=120,90,520,360"' "$PLACES"
+press_key $ESCAPE
+check "cancelling the confirmation removes nothing" '"org.snaptile.MemB=5,40,300,200;org.snaptile.MemA=120,90,520,360"' "$PLACES"
+prefs_key $SPACE # the clear button still has the focus
+confirm_clear
 check "the clear button empties the stored data" '""' "$PLACES"
 close_window mem-a
 check "closing the window after the clear brings back only its own place, not the cleared data" '"org.snaptile.MemA=200,120,500,350"' "$PLACES"
@@ -951,6 +960,7 @@ stop_apps
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 place_window mem-a 220 140 450 330
 prefs_key $SPACE # the clear button still has the focus
+confirm_clear
 check "the clear button empties the stored data again" '""' "$PLACES"
 ev "$MEM.set_boolean('enabled', false), 1" >/dev/null
 close_window mem-a

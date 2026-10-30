@@ -72,8 +72,10 @@ Status: accepted (2026-10-23, maintainer decision in a grilling session). Spec: 
   effect at once. The clear button resets the stored places; the extension follows every
   change of the stored text that is not its own write, replaces its in-memory copy and forgets
   which open window saved last, so a window open during the clear stores its place anew when
-  it closes (while the switch is on). The clear button asks no confirmation: what it removes
-  is only window places, which rebuild by use.
+  it closes (while the switch is on). The clear button first asked no confirmation (what it
+  removes is only window places, which rebuild by use); since 2026-10-30 it opens a dialog
+  that says what is removed and needs a second click on "Clear" (maintainer decision), so a
+  mis-click cannot lose all places. The dialog's default is "Cancel", so Enter alone never clears.
 - Known limit of the clear button: the extension learns of the clear through a change signal,
   not in the same instant. A window that closes in that fraction of a second would write the
   old places back over the cleared text. Not guarded; the user can press the button again.
