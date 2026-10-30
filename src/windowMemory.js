@@ -47,14 +47,15 @@ export class WindowMemory {
         this._places = {};
         this._signals = [];
         // Every window watched until it closes: {closingId, arriving, unmaximizedId, savedAt,
-        // forgotten, openingSizeId, openingSize}. Arriving marks a window created since enable that is not
-        // placed yet; unmaximizedId is the wait for a window that maximised itself to say it has
-        // its free size back; savedAt is when the window last saved its place (a number from
-        // _saves, 0: never), to tell which of an application's windows saved last; forgotten
-        // marks a window that was open when the memory was cleared: it saves nothing, not even
-        // when it closes, until the user moves or resizes it again (see _forgetOpenWindows);
-        // openingSizeId is the connection that follows an application resizing its new window
-        // and openingSize the size it last stored (see _rememberOpeningSize).
+        // forgotten, openingSizeId, openingSize}. Arriving marks a window created since enable
+        // that is not placed yet; unmaximizedId is the wait for a window that maximised itself
+        // to say it has its free size back; savedAt is when the window last saved its place (a
+        // number from _saves, 0: never), to tell which of an application's windows saved last;
+        // forgotten marks a window that was open when the memory was cleared: it saves nothing,
+        // not even when it closes, until the user moves or resizes it again (see
+        // _forgetOpenWindows); openingSizeId is the connection that follows an application
+        // resizing its new window and openingSize the size it last stored (see
+        // _rememberOpeningSize).
         this._windows = new Map();
         this._saves = 0;
         // Saves that wait for the monitors' names, in order: functions that store the place.

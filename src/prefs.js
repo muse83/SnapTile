@@ -33,7 +33,8 @@ export default class SnapTilePreferences extends ExtensionPreferences {
                 heading: 'Close all windows?',
                 body: 'Every open application window is asked to close, like its close button ' +
                     'does. Unsaved work can be lost: applications may ask what to do with it, ' +
-                    'or refuse to close. The remembered windows are cleared as well.',
+                    'or refuse to close. The remembered windows are cleared as well. ' +
+                    'Windows are only closed while SnapTile is switched on.',
             });
             confirmClose.add_response('cancel', 'Cancel');
             confirmClose.add_response('close', 'Close all windows');

@@ -19,7 +19,8 @@ frame shows where it will go, and on release the window snaps there.
   `tile-right-third`).
 - **Window memory**: an application's next window reopens where the last one was (size,
   position, Tile or maximised, and the monitor). A second window opens slightly offset from the
-  first. Dialogs are left alone. Switch it off, clear it, or clear it and close all windows in the extension's preferences (each asks first).
+  first. Dialogs are left alone. Switch it off, clear it, or clear it and close all windows in
+  the extension's preferences (each asks first).
 - **Window look**: rounded corners, a small margin around every window and no shadow, for tiled
   and floating windows alike.
 

@@ -88,6 +88,11 @@ Status: accepted (2026-10-23, maintainer decision in a grilling session). Spec: 
   resets the request at once. The windows of the Extensions manager, which include the
   preferences window, stay. A request found when the extension starts is dropped, so a request
   made while it was off closes nothing later. Windows are asked, never killed.
+- Known limits of the clear button since then (found in the review, not guarded): clearing an
+  already empty memory changes nothing, so no signal arrives and windows open at that moment
+  still save when they close; windows already open when the extension is switched on later are
+  not marked as forgotten; "close all windows" does nothing while the extension is off (the
+  dialog says so).
 - Known limit of the clear button: the extension learns of the clear through a change signal,
   not in the same instant. A window that closes in that fraction of a second would write the
   old places back over the cleared text. Not guarded; the user can press the button again.
