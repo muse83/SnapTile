@@ -2,7 +2,7 @@
   "uuid": "snaptile@muse83",
   "name": "SnapTile",
   "description": "Snap windows into 14 screen areas by dragging them to the screen edge, and optionally remember each application's window size and position.",
-  "version-name": "1.1.0",
+  "version-name": "1.1.1",
   "shell-version": ["50", "51"],
   "settings-schema": "org.gnome.shell.extensions.snaptile",
   "url": "https://github.com/muse83/SnapTile"
