@@ -9,6 +9,11 @@ so a window tiled by key behaves exactly like one tiled by drag. A window that c
 (dialogs, full-screen windows) is left alone. They work in the normal desktop, not in the
 overview or on the lock screen.
 
+A maximised window, or one that GNOME put into a half of the screen (Super+Left/Right), is tiled
+too. Mutter reports both as not resizable (ADR 0009), so the check for "can be tiled" lets them
+through for the shortcuts, and only for those, not for drags or the adoption at start. Such a
+window has no free size to give back.
+
 The shortcuts are on by default and have a switch in the extension's preferences (settings key
 `thirds-shortcuts`); switching it off hands the keys back to the applications at once, without
 restarting the extension. The keys are in the settings schema (`tile-left-third`, `tile-middle-third`,

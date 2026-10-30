@@ -150,7 +150,7 @@ export class DragSnap {
         this._tiledWindows.tile(window.get_id(), tile, sizeBefore ?? this._defaultSizeOf(window), rect);
         const entry = this._track(window);
 
-        if (window.is_maximized())
+        if (isMaximizedOrHalf(window))
             window.unmaximize();
         window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
         // A window with a minimum size larger than the Tile ends up bigger than asked for,
@@ -160,7 +160,7 @@ export class DragSnap {
         // dragged out or the extension is disabled. No guess about how long that takes.
         this._stopAnchoring(entry);
         const anchor = () => {
-            if (window.is_maximized() || window.is_fullscreen())
+            if (isMaximizedOrHalf(window) || window.is_fullscreen())
                 return;
             const current = window.get_frame_rect();
             if (current.width <= rect.width && current.height <= rect.height)
@@ -180,12 +180,12 @@ export class DragSnap {
      * (it keeps the size from before its first tiling): neither takes its size now.
      */
     snapToTile(window, tile) {
-        if (!isTileable(window))
+        if (!isTileable(window, {allowMaximized: true}))
             return;
         const workArea = this._workAreaOf(window);
         const frame = window.get_frame_rect();
         const tiled = this._tiledWindows.get(window.get_id());
-        const sizeBefore = window.is_maximized() || tiled ? null : {width: frame.width, height: frame.height};
+        const sizeBefore = isMaximizedOrHalf(window) || tiled ? null : {width: frame.width, height: frame.height};
         this.snapWindow(window, {rect: tileRect(tile, workArea), workArea, tile}, sizeBefore);
     }
 
@@ -264,9 +264,18 @@ export class DragSnap {
     }
 }
 
-function isTileable(window) {
+// Maximised, or put into one of GNOME's own halves, which Mutter sees as maximised in one
+// direction only.
+function isMaximizedOrHalf(window) {
+    return window.is_maximized() || window.maximized_horizontally || window.maximized_vertically;
+}
+
+// Such a window reports that it cannot be resized (ADR 0009), so it only counts when asked to
+// (a keyboard shortcut tiles it; a drag or the start of the extension must not).
+function isTileable(window, {allowMaximized = false} = {}) {
     return window.get_window_type() === Meta.WindowType.NORMAL &&
-        window.allows_move() && window.allows_resize() && !window.is_fullscreen();
+        window.allows_move() && (window.allows_resize() || (allowMaximized && isMaximizedOrHalf(window))) &&
+        !window.is_fullscreen();
 }
 
 function plainRect({x, y, width, height}) {

@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 215 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 217 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=215
+MAX_RUNTIME=217
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -313,14 +313,16 @@ check "it still remembers its earlier size" '"[400,300]"' "$SIZE"
 button RELEASED
 
 echo "Keyboard shortcuts for the thirds:"
-press_ctrl() { # press_ctrl <keyval>: Control and that key, then both released
-    local ctrl=0xffe3 key state
-    for step in "$ctrl PRESSED" "$1 PRESSED" "$1 RELEASED" "$ctrl RELEASED"; do
+press_with() { # press_with <modifier keyval> <keyval>: the modifier and that key, then both released
+    local key state
+    for step in "$1 PRESSED" "$2 PRESSED" "$2 RELEASED" "$1 RELEASED"; do
         read -r key state <<<"$step"
         ev "globalThis.__kbd.notify_keyval(imports.gi.GLib.get_monotonic_time(), $key, imports.gi.Clutter.KeyState.$state), 1" >/dev/null
     done
     sleep 0.3
 }
+CTRL=0xffe3; SUPER=0xffeb
+press_ctrl() { press_with $CTRL "$1"; }
 LEFT=0xff51; DOWN=0xff54; RIGHT=0xff53
 ev "$MEM.reset('thirds-shortcuts'), 1" >/dev/null # the settings of an earlier run may still be there
 start_probe
@@ -342,6 +344,16 @@ check "switched off in the settings: the shortcut does nothing" '"[854,32,426,68
 ev "$MEM.set_boolean('thirds-shortcuts', true), 1" >/dev/null
 press_ctrl $LEFT
 check "switched on again while running: the shortcut works" '"[0,32,427,688]"' "$RECT"
+ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").maximize(), 1' >/dev/null
+for _ in $(seq 25); do # until it is maximised (at most 5 s)
+    [ "$(ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").is_maximized()')" = true ] && break
+    sleep 0.2
+done
+press_ctrl $DOWN
+check "a maximised window goes into the middle third (it reports it cannot be resized)" '"[427,32,427,688]"' "$RECT"
+press_with $SUPER $LEFT # Super+Left: GNOME's own left half, which Mutter sees as maximised vertically
+press_ctrl $RIGHT
+check "a window put into GNOME's left half goes into the right third" '"[854,32,426,688]"' "$RECT"
 kill $WINDOW_PID 2>/dev/null
 
 echo "Window that cannot get as small as the Tile (minimum 900x500):"
