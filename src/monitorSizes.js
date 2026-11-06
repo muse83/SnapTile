@@ -4,6 +4,8 @@
 import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {lookSizes} from './tileDecision.js';
+
 const BUS_NAME = 'org.gnome.Mutter.DisplayConfig';
 const OBJECT_PATH = '/org/gnome/Mutter/DisplayConfig';
 
@@ -37,6 +39,14 @@ export class MonitorSizes {
         this.refresh();
         this._monitorsChangedId = Main.layoutManager.connect('monitors-changed',
             () => this.refresh());
+    }
+
+    /** {radius, margin} of the Window look in pixels for a monitor; zero for one that is not there. */
+    lookOf(index) {
+        const monitor = Main.layoutManager.monitors[index];
+        if (!monitor)
+            return {radius: 0, margin: 0};
+        return lookSizes({width: monitor.width, height: monitor.height, ...this.get(index)});
     }
 
     /** `callback` is called each time fresh sizes arrive from Mutter. */

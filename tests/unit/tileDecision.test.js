@@ -172,6 +172,7 @@ test('moving from the strip into a corner gives the quarter and drops the merge'
 test('look sizes are converted to pixels for the monitor', () => {
     // 40 px/cm: 2 mm = 8 px, 0.83 mm = 3.32 px
     assert.deepEqual(at(0, 0).look, {radius: 8, margin: 3});
+    assert.equal(at(0, 0).monitor, 0);
 });
 
 test('the visible rectangle of a Tile is the Tile pulled in by the margin on every side', () => {
@@ -371,6 +372,11 @@ test('a window exactly in a Tile is found in it, for every Tile', () => {
 test('a window a little smaller than its Tile is still found in it (size steps of a terminal)', () => {
     const rect = tileRect('left', AREA);
     assert.equal(tileOfFrame({...rect, width: rect.width - 14, height: rect.height - 23}, AREA), 'left');
+});
+
+test('a window pulled in by the margin is found in its Tile (the frame SnapTile gives a tiled window)', () => {
+    for (const tile of TILES)
+        assert.equal(tileOfFrame(insetRect(tileRect(tile, AREA), 7), AREA, 7), tile, tile);
 });
 
 test('a window that sits freely is in no Tile', () => {

@@ -51,14 +51,17 @@ _Avoid_: Hot corner (a different GNOME feature)
 
 **Window look**:
 How SnapTile makes every window appear, tiled or floating: all four corners rounded to the
-same radius (2 mm) and a visual margin (0.83 mm) around the window, and no shadow. Purely
-visual: it never changes where a window can be placed, so floating windows can still overlap, touch or sit
-anywhere. Applies to every application window and dialog. Not to menus, tooltips or the
+same radius (2 mm), no shadow, and for a tiled window a margin (0.83 mm) around it. The corners
+and the missing shadow are purely visual and never change where a window can be placed, so
+floating windows can still overlap, touch or sit anywhere (they have no margin, see ADR 0017).
+Applies to every application window and dialog. Not to menus, tooltips or the
 GNOME interface, and not to full-screen windows (those that also hide the dock and top bar).
 
 **Window margin**:
-The 0.83 mm of empty space shown around the visible window, part of the Window look. Two
-tiled windows next to each other therefore appear 1.66 mm apart.
+The 0.83 mm of empty space around a tiled window, part of the Window look. It is real: the
+window is made smaller than its Tile by the margin on every side, so the application lays its
+content out inside the visible window and nothing is hidden. Two tiled windows next to each
+other are therefore 1.66 mm apart. Floating windows have none.
 
 **Merged thirds**:
 Two neighbouring thirds combined into one two-thirds Tile by dragging the pointer along the

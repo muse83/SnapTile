@@ -300,12 +300,12 @@ function nearestMonitorIndex(monitors, frame) {
  * @param {{id: ?string, workArea: {x: number, y: number, width: number, height: number}}[]} monitors
  * @returns {null |
  *   {kind: 'free', rect: object} |
- *   {kind: 'tile', tile: string, rect: object, workArea: object, sizeBefore: ?object} |
+ *   {kind: 'tile', tile: string, rect: object, workArea: object, monitor: number, sizeBefore: ?object} |
  *   {kind: 'maximized', monitor: number}}
  *   free: the remembered frame, moved back inside and shrunk to fit the work area (without any
  *   monitor it is returned as it is); tile: the Tile's rectangle in the work area, the work
- *   area itself (for the anchoring rule) and the size to give back when the window is dragged
- *   out, null if none is known; maximized: the index of the monitor in `monitors`
+ *   area itself (for the anchoring rule), the index of the monitor and the size to give back
+ *   when the window is dragged out, null if none is known; maximized: the index of the monitor in `monitors`
  */
 export function placementFor(places, key, monitors) {
     const entry = places[key];
@@ -326,6 +326,7 @@ export function placementFor(places, key, monitors) {
             tile: entry.tile,
             rect: tileRect(entry.tile, area),
             workArea: {...area},
+            monitor: index,
             sizeBefore: entry.sizeBefore ? copySize(entry.sizeBefore) : null,
         };
     }

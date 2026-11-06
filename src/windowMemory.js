@@ -251,7 +251,8 @@ export class WindowMemory {
             return false;
         const monitor = window.get_monitor();
         return monitor < 0 || tileOfFrame(plainRect(window.get_frame_rect()),
-            plainRect(Main.layoutManager.getWorkAreaForMonitor(monitor))) === null;
+            plainRect(Main.layoutManager.getWorkAreaForMonitor(monitor)),
+            this._monitorSizes.lookOf(monitor).margin) === null;
     }
 
     /**

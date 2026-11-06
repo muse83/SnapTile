@@ -1,6 +1,8 @@
 # SnapTile forces its window look (rounded corners, margin) on all windows
 
-Status: accepted (2026-10-23, maintainer decision)
+Status: accepted (2026-10-23, maintainer decision). The margin part is replaced by ADR 0017
+(2026-11-06): the margin is real space around a tiled window, no longer a cut inside the frame,
+and floating windows have none.
 
 SnapTile gives every window the same rounded corners (2 mm, all four corners) and a 0.83 mm
 visual margin, whether the window is tiled or floating. The look is applied by SnapTile
@@ -43,7 +45,7 @@ maintainer wants the uniform look macOS has, and it is part of the first version
   clears everything outside the visible window, which covers those too, not yet seen on a
   window without a client shadow).
 
-## How the margin and the preview are made (2026-10-23, built in the second window look ticket)
+## How the margin and the preview are made (2026-10-23, built in the second window look ticket; the margin part is replaced by ADR 0017)
 
 - The margin is made by the same shader as the corners: inside the window frame the outer
   0.83 mm are made transparent and the corners are rounded around what is left. The window

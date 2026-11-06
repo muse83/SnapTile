@@ -57,8 +57,9 @@ export function lookSizes(monitor) {
 }
 
 /**
- * `rect` pulled in by `margin` on every side: the part of a window or Tile that is visible
- * once the Window margin is applied. A rectangle too small for it shrinks to zero around its
+ * `rect` pulled in by `margin` on every side: the frame a window in a Tile gets, so that the
+ * Window margin is real empty space around it and the application lays its content out inside.
+ * A rectangle too small for it shrinks to zero around its
  * centre instead of turning inside out.
  */
 export function insetRect(rect, margin) {
@@ -140,12 +141,14 @@ const TILE_MATCH_SLACK_PX = 32;
  * wins.
  * @param {{x: number, y: number, width: number, height: number}} frame the window's frame
  * @param {{x: number, y: number, width: number, height: number}} area the work area of its monitor
+ * @param {number} [margin] the Window margin of that monitor: a tiled window sits in its Tile
+ *   pulled in by it
  */
-export function tileOfFrame(frame, area) {
+export function tileOfFrame(frame, area, margin = 0) {
     let found = null;
     let foundOffset = Infinity;
     for (const tile of TILES) {
-        const rect = tileRect(tile, area);
+        const rect = insetRect(tileRect(tile, area), margin);
         const offsets = ['x', 'y', 'width', 'height'].map(side => Math.abs(frame[side] - rect[side]));
         const offset = offsets.reduce((sum, value) => sum + value, 0);
         if (offsets.every(value => value <= TILE_MATCH_SLACK_PX) && offset < foundOffset) {
@@ -197,9 +200,9 @@ export function anchoredOrigin(rect, size, workArea) {
  * @param {Array<{x, y, width, height, widthMm, heightMm, workArea: {x, y, width, height}}>} input.monitors
  * @param {object|null} [input.state] the `state` of the previous result while the drag
  *   continues; omit or null at the start of a drag
- * @returns {{tile: string, rect: object, visible: object, workArea: object, look: {radius: number, margin: number}, state: object|null}|null}
- *   `rect` is where the window is placed, `visible` the same pulled in by the Window margin
- *   (what the Tile preview draws)
+ * @returns {{tile: string, rect: object, visible: object, workArea: object, monitor: number, look: {radius: number, margin: number}, state: object|null}|null}
+ *   `rect` is the Tile, `visible` the same pulled in by the Window margin: what the Tile
+ *   preview draws and the frame the window is given. `monitor` is the index in `monitors`
  *   null when the pointer is in no Edge zone (the preview is hidden)
  */
 export function decideTile({pointer, monitors, state = null}) {
@@ -254,6 +257,7 @@ export function decideTile({pointer, monitors, state = null}) {
         rect,
         visible: insetRect(rect, look.margin),
         workArea: {...area},
+        monitor: index,
         look,
         state: nextState,
     };

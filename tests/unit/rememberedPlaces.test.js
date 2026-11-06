@@ -342,7 +342,7 @@ const SECOND = {x: 1920, y: 0, width: 1280, height: 1024};
 test('a remembered Tile goes to the same Tile of the work area, with the earlier size to give back', () => {
     const places = {a: {frame: LEFT_TILE, tile: 'left', sizeBefore: SIZE_BEFORE}};
     assert.deepEqual(placementFor(places, 'a', monitorsOf([WORK])), {
-        kind: 'tile', tile: 'left', rect: LEFT_TILE, workArea: WORK, sizeBefore: SIZE_BEFORE,
+        kind: 'tile', tile: 'left', rect: LEFT_TILE, workArea: WORK, monitor: 0, sizeBefore: SIZE_BEFORE,
     });
 });
 
@@ -356,7 +356,7 @@ test('a Tile on the second monitor stays on the second monitor', () => {
     const rightHalf = {x: 2560, y: 0, width: 640, height: 1024};
     const places = {a: {frame: rightHalf, tile: 'right'}};
     assert.deepEqual(placementFor(places, 'a', monitorsOf([WORK, SECOND])), {
-        kind: 'tile', tile: 'right', rect: rightHalf, workArea: SECOND, sizeBefore: null,
+        kind: 'tile', tile: 'right', rect: rightHalf, workArea: SECOND, monitor: 1, sizeBefore: null,
     });
 });
 

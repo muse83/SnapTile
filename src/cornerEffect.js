@@ -5,11 +5,11 @@ import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 
-// Fragment shader. Everything outside the visible window is cleared: the margin inside the
-// window's frame, and whatever the application draws outside the frame (its own shadow, the
-// invisible resize border). A shadow left standing would sit around the frame, one margin away
-// from the visible window, and look like a second border. The corners are rounded around what
-// is left. The picture is premultiplied, so scaling all four channels fades the pixel out.
+// Fragment shader. Everything outside the window's frame is cleared: whatever the application
+// draws there (its own shadow, the invisible resize border). The corners are rounded around
+// what is left. Nothing inside the frame is cleared apart from the corners: the Window margin
+// is made by giving a tiled window a smaller frame, never by hiding the edge of a window,
+// which would swallow whatever the application draws there (ADR 0017). The picture is premultiplied, so scaling all four channels fades the pixel out.
 const UNIFORMS = `
 uniform sampler2D tex;
 uniform float texture_left;
@@ -21,20 +21,19 @@ uniform float frame_top;
 uniform float frame_right;
 uniform float frame_bottom;
 uniform float radius;
-uniform float margin;
 `;
 
 const BODY = `
     vec4 color = texture2D(tex, cogl_tex_coord_in[0].xy);
     vec2 p = vec2(texture_left, texture_top) +
              cogl_tex_coord_in[0].xy * vec2(texture_width, texture_height);
-    vec2 visible_low = vec2(frame_left, frame_top) + margin;
-    vec2 visible_high = vec2(frame_right, frame_bottom) - margin;
-    vec2 inner_low = visible_low + radius;
-    vec2 inner_high = visible_high - radius;
+    vec2 frame_low = vec2(frame_left, frame_top);
+    vec2 frame_high = vec2(frame_right, frame_bottom);
+    vec2 inner_low = frame_low + radius;
+    vec2 inner_high = frame_high - radius;
     vec2 into_corner = max(inner_low - p, p - inner_high);
-    bool in_visible = p.x >= visible_low.x && p.x <= visible_high.x &&
-                      p.y >= visible_low.y && p.y <= visible_high.y;
+    bool in_visible = p.x >= frame_low.x && p.x <= frame_high.x &&
+                      p.y >= frame_low.y && p.y <= frame_high.y;
     if (!in_visible)
         color = vec4(0.0);
     else if (into_corner.x > 0.0 && into_corner.y > 0.0)
@@ -86,10 +85,9 @@ class SourceEffect extends Clutter.ShaderEffect {
 const ShaderEffectBase = GObject.registerClass(SNIPPET_API ? SnippetEffect : SourceEffect);
 
 /**
- * Gives a window actor the Window look: the margin cleared around the frame, the application's
- * shadow cleared outside it, and the four corners rounded. `setFrame()` says where the frame
- * lies inside the actor (the actor also covers the application's shadow) and how big the
- * radius and margin are.
+ * Gives a window actor the Window look: the application's shadow cleared outside the frame, and
+ * the four corners rounded. `setFrame()` says where the frame lies inside the actor (the actor
+ * also covers the application's shadow) and how big the radius is.
  */
 export const CornerEffect = GObject.registerClass(
 class SnapTileCornerEffect extends ShaderEffectBase {
@@ -97,28 +95,25 @@ class SnapTileCornerEffect extends ShaderEffectBase {
         super._init();
         this._frame = null;
         this._radius = 0;
-        this._margin = 0;
         this._uploaded = '';
     }
 
     /**
-     * `frame` is {left, top, right, bottom} in actor pixels, `look` is {radius, margin} in the
+     * `frame` is {left, top, right, bottom} in actor pixels, `radius` the corner radius in the
      * same unit.
      */
-    setFrame(frame, {radius, margin}) {
+    setFrame(frame, radius) {
         const half = Math.min(frame.right - frame.left, frame.bottom - frame.top) / 2;
-        const clampedMargin = Math.max(0, Math.min(margin, half));
-        const clamped = Math.max(0, Math.min(radius, half - clampedMargin));
+        const clamped = Math.max(0, Math.min(radius, half));
         const same = this._frame &&
             this._frame.left === frame.left && this._frame.top === frame.top &&
             this._frame.right === frame.right && this._frame.bottom === frame.bottom &&
-            this._radius === clamped && this._margin === clampedMargin;
+            this._radius === clamped;
         if (same)
             return;
 
         this._frame = {...frame};
         this._radius = clamped;
-        this._margin = clampedMargin;
         this._upload(true);
     }
 
@@ -149,7 +144,6 @@ class SnapTileCornerEffect extends ShaderEffectBase {
         this._uniform('frame_right', GObject.TYPE_FLOAT, this._frame.right);
         this._uniform('frame_bottom', GObject.TYPE_FLOAT, this._frame.bottom);
         this._uniform('radius', GObject.TYPE_FLOAT, this._radius);
-        this._uniform('margin', GObject.TYPE_FLOAT, this._margin);
     }
 
     _uniform(name, type, number) {

@@ -5,7 +5,6 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {CornerEffect} from './cornerEffect.js';
-import {lookSizes} from './tileDecision.js';
 
 const EFFECT_NAME = 'snaptile-corners';
 
@@ -13,9 +12,10 @@ const EFFECT_NAME = 'snaptile-corners';
 const LOOK_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowType.MODAL_DIALOG];
 
 /**
- * Gives every application window and dialog the Window look, tiled or floating. For now that
- * is the rounded corners and the margin around the window; everything it adds is removed
- * again by destroy().
+ * Gives every application window and dialog the Window look, tiled or floating: the rounded
+ * corners, and no shadow. The margin is not drawn here: a window in a Tile is made smaller by
+ * the margin when it is snapped (DragSnap), so the application never draws under it.
+ * Everything it adds is removed again by destroy().
  */
 export class WindowLook {
     constructor(monitorSizes) {
@@ -105,17 +105,6 @@ export class WindowLook {
         const top = frame.y - buffer.y;
         effect.setFrame(
             {left, top, right: left + frame.width, bottom: top + frame.height},
-            this._lookFor(window));
-    }
-
-    /** {radius, margin} in pixels for the monitor the window is on. */
-    _lookFor(window) {
-        const index = window.get_monitor();
-        const monitor = Main.layoutManager.monitors[index];
-        if (!monitor)
-            return {radius: 0, margin: 0};
-        return lookSizes({
-            width: monitor.width, height: monitor.height, ...this._monitorSizes.get(index),
-        });
+            this._monitorSizes.lookOf(window.get_monitor()).radius);
     }
 }

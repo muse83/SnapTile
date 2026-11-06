@@ -6,7 +6,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {anchoredOrigin, decideTile, tileOfFrame, tileRect} from './tileDecision.js';
+import {anchoredOrigin, decideTile, insetRect, tileOfFrame, tileRect} from './tileDecision.js';
 import {TilePreview} from './tilePreview.js';
 
 // How often the pointer is read during a drag. The shell offers no pointer signal while
@@ -103,8 +103,10 @@ export class DragSnap {
         if (result)
             this._snap(window, result, tiled);
         else if (cancelled && tiled)
-            this.snapWindow(window, {rect: tiled.frame, workArea: this._workAreaOf(window), tile: tiled.tile},
-                tiled.sizeBefore);
+            this.snapWindow(window, {
+                rect: tiled.frame, workArea: this._workAreaOf(window), tile: tiled.tile,
+                monitor: window.get_monitor(),
+            }, tiled.sizeBefore);
     }
 
     _update() {
@@ -140,32 +142,39 @@ export class DragSnap {
     }
 
     /**
-     * Puts a window into a Tile and records it as tiled.
-     * @param {{rect, workArea, tile}} result the Tile, its rectangle and the work area it is in
+     * Puts a window into a Tile and records it as tiled. The window gets the Tile pulled in by
+     * the Window margin of its monitor as its frame, so the margin is real empty space around
+     * it and the application lays its content out inside the visible window.
+     * @param {{rect, workArea, tile, monitor}} result the Tile, its rectangle, the work area it
+     *   is in and the index of the monitor
      * @param {?{width: number, height: number}} sizeBefore the size to give back when the
      *   window is dragged out of the Tile; null if the window has none of its own, it then gets
      *   the free size its application is known to have, and if there is none it keeps its own
      */
-    snapWindow(window, {rect, workArea, tile}, sizeBefore) {
+    snapWindow(window, {rect, workArea, tile, monitor}, sizeBefore) {
         this._tiledWindows.tile(window.get_id(), tile, sizeBefore ?? this._defaultSizeOf(window), rect);
         const entry = this._track(window);
 
+        const {margin} = this._monitorSizes.lookOf(monitor);
+        const frame = insetRect(rect, margin);
+        const room = insetRect(workArea, margin);
         if (isMaximizedOrHalf(window))
             window.unmaximize();
-        window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
+        window.move_resize_frame(true, frame.x, frame.y, frame.width, frame.height);
         // A window with a minimum size larger than the Tile ends up bigger than asked for,
         // and Mutter then leaves it where the drag put it. So hang a window that is too big
-        // on the Tile's top left corner (the Tile itself stays as it is): right away, when
-        // the size is already final, and again whenever the size changes, until it is
-        // dragged out or the extension is disabled. No guess about how long that takes.
+        // on the top left corner of its frame (the Tile itself stays as it is), inside the
+        // work area pulled in by the margin: right away, when the size is already final, and
+        // again whenever the size changes, until it is dragged out or the extension is
+        // disabled. No guess about how long that takes.
         this._stopAnchoring(entry);
         const anchor = () => {
             if (isMaximizedOrHalf(window) || window.is_fullscreen())
                 return;
             const current = window.get_frame_rect();
-            if (current.width <= rect.width && current.height <= rect.height)
+            if (current.width <= frame.width && current.height <= frame.height)
                 return;
-            const origin = anchoredOrigin(rect, current, workArea);
+            const origin = anchoredOrigin(frame, current, room);
             if (origin.x !== current.x || origin.y !== current.y)
                 window.move_frame(true, origin.x, origin.y);
         };
@@ -186,7 +195,9 @@ export class DragSnap {
         const frame = window.get_frame_rect();
         const tiled = this._tiledWindows.get(window.get_id());
         const sizeBefore = isMaximizedOrHalf(window) || tiled ? null : {width: frame.width, height: frame.height};
-        this.snapWindow(window, {rect: tileRect(tile, workArea), workArea, tile}, sizeBefore);
+        this.snapWindow(window, {
+            rect: tileRect(tile, workArea), workArea, tile, monitor: window.get_monitor(),
+        }, sizeBefore);
     }
 
     /**
@@ -200,7 +211,8 @@ export class DragSnap {
         if (!isTileable(window) || window.get_monitor() < 0 || this._tiledWindows.get(window.get_id()))
             return;
         const workArea = this._workAreaOf(window);
-        const tile = tileOfFrame(window.get_frame_rect(), workArea);
+        const tile = tileOfFrame(window.get_frame_rect(), workArea,
+            this._monitorSizes.lookOf(window.get_monitor()).margin);
         if (!tile)
             return;
         this._tiledWindows.tile(window.get_id(), tile, sizeBefore, tileRect(tile, workArea));

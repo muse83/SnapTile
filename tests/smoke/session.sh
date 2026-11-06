@@ -198,14 +198,18 @@ drag_to() { # drag_to X Y: moves the held window to a pointer position in three 
     move $1 $2
     sleep 0.3
 }
-snap() { # snap <description> <pointer x> <pointer y> <expected Tile rectangle x,y,w,h> [expected window x,y,w,h]
+# inset X,Y,W,H: the rectangle pulled in by the margin on every side. A window in a Tile is given
+# its Tile pulled in by the margin as its frame, so the margin is real empty space around it.
+inset() { local x y w h; IFS=, read -r x y w h <<<"$1"; echo "$((x + MARGIN)),$((y + MARGIN)),$((w - 2 * MARGIN)),$((h - 2 * MARGIN))"; }
+
+snap() { # snap <description> <pointer x> <pointer y> <expected Tile rectangle x,y,w,h> [expected window x,y,w,h: the Tile pulled in by the margin if omitted]
     grab_window
     drag_to "$2" "$3"
     local preview frame
     preview=$(ev "$PREVIEW")
     button RELEASED
     frame=$(ev "$RECT")
-    local window=${5:-$4}
+    local window=${5:-$(inset "$4")}
     if [ "$preview" = "\"[[$4]]\"" ] && [ "$frame" = "\"[$window]\"" ]; then
         pass "$1: preview at $4, window at $window"
     else
@@ -222,10 +226,11 @@ snap_merged() { # snap_merged <description> <pointer x of the first third> <of t
     preview=$(ev "$PREVIEW")
     button RELEASED
     frame=$(ev "$RECT")
-    if [ "$preview" = "\"[[$4]]\"" ] && [ "$frame" = "\"[$4]\"" ]; then
-        pass "$1: preview at $4, window at $4"
+    local window; window=$(inset "$4")
+    if [ "$preview" = "\"[[$4]]\"" ] && [ "$frame" = "\"[$window]\"" ]; then
+        pass "$1: preview at $4, window at $window"
     else
-        fail "$1: expected preview [[$4]] and window [$4], got preview $preview and window $frame"
+        fail "$1: expected preview [[$4]] and window [$window], got preview $preview and window $frame"
     fi
 }
 
@@ -305,7 +310,7 @@ drag_to 3 360
 check "dragging the tiled window back to a zone shows its preview" '"[[0,32,640,688]]"' "$PREVIEW"
 press_escape
 button RELEASED
-check "Escape puts a tiled window back into its Tile" '"[0,32,640,688]"' "$RECT"
+check "Escape puts a tiled window back into its Tile" '"[3,35,634,682]"' "$RECT"
 check "the shared record still names the Tile" '"left 400x300"' "$TILED"
 grab_window
 drag_to 640 300
@@ -328,51 +333,51 @@ ev "$MEM.reset('thirds-shortcuts'), 1" >/dev/null # the settings of an earlier r
 start_probe
 ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").activate(global.get_current_time()), 1' >/dev/null
 press_ctrl $LEFT
-check "Ctrl+Left: left third" '"[0,32,427,688]"' "$RECT"
+check "Ctrl+Left: left third" '"[3,35,421,682]"' "$RECT"
 check "the shared record names the Tile and the size from before" '"third-1 400x300"' "$TILED"
 press_ctrl $DOWN
-check "Ctrl+Down: middle third" '"[427,32,427,688]"' "$RECT"
+check "Ctrl+Down: middle third" '"[430,35,421,682]"' "$RECT"
 press_ctrl $RIGHT
-check "Ctrl+Right: right third" '"[854,32,426,688]"' "$RECT"
+check "Ctrl+Right: right third" '"[857,35,420,682]"' "$RECT"
 ev "$DISABLE" >/dev/null
 press_ctrl $LEFT
-check "after disabling, the shortcut does nothing" '"[854,32,426,688]"' "$RECT"
+check "after disabling, the shortcut does nothing" '"[857,35,420,682]"' "$RECT"
 ev "$ENABLE" >/dev/null
 ev "$MEM.set_boolean('thirds-shortcuts', false), 1" >/dev/null
 press_ctrl $LEFT
-check "switched off in the settings: the shortcut does nothing" '"[854,32,426,688]"' "$RECT"
+check "switched off in the settings: the shortcut does nothing" '"[857,35,420,682]"' "$RECT"
 ev "$MEM.set_boolean('thirds-shortcuts', true), 1" >/dev/null
 press_ctrl $LEFT
-check "switched on again while running: the shortcut works" '"[0,32,427,688]"' "$RECT"
+check "switched on again while running: the shortcut works" '"[3,35,421,682]"' "$RECT"
 ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").maximize(), 1' >/dev/null
 for _ in $(seq 25); do # until it is maximised (at most 5 s)
     [ "$(ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").is_maximized()')" = true ] && break
     sleep 0.2
 done
 press_ctrl $DOWN
-check "a maximised window goes into the middle third (it reports it cannot be resized)" '"[427,32,427,688]"' "$RECT"
+check "a maximised window goes into the middle third (it reports it cannot be resized)" '"[430,35,421,682]"' "$RECT"
 press_with $SUPER $LEFT # Super+Left: GNOME's own left half, which Mutter sees as maximised vertically
 press_ctrl $RIGHT
-check "a window put into GNOME's left half goes into the right third" '"[854,32,426,688]"' "$RECT"
+check "a window put into GNOME's left half goes into the right third" '"[857,35,420,682]"' "$RECT"
 kill $WINDOW_PID 2>/dev/null
 
 echo "Window that cannot get as small as the Tile (minimum 900x500):"
 start_probe 900x500
-snap "top-left quarter: window anchored at the Tile's top left" 3 3 0,32,640,344 0,32,900,500
-snap "bottom-right quarter: window pulled back onto the screen" 1276 716 640,376,640,344 380,220,900,500
+snap "top-left quarter: window anchored at the top left of its frame" 3 3 0,32,640,344 3,35,900,500
+snap "bottom-right quarter: window pulled back onto the screen, margin kept" 1276 716 640,376,640,344 377,217,900,500
 
 echo "A tiled window that grows beyond its Tile:"
 start_probe
 snap "top-left quarter" 3 3 0,32,640,344
 resize_window 100 100 700 400
-check "it is hung on the Tile's top left corner again" '"[0,32,700,400]"' "$RECT"
+check "it is hung on the top left corner of its frame again" '"[3,35,700,400]"' "$RECT"
 ev "$DISABLE" >/dev/null
 resize_window 100 100 720 420
 check "after disabling, SnapTile no longer touches it" '"[100,100,720,420]"' "$RECT"
 ev "$ENABLE" >/dev/null
 kill $WINDOW_PID 2>/dev/null
 
-echo "Window look: rounded corners and margin (probe window at 440,226, 400x300, 8 px corners and 3 px margin at 96 DPI):"
+echo "Window look: rounded corners, nothing hidden inside the frame (probe window at 440,226, 400x300, 8 px corners at 96 DPI):"
 # The shell starts in the overview, which shows windows smaller, and animations would move
 # them during a screenshot. Both are switched off for the pixel checks.
 gsettings set org.gnome.desktop.interface enable-animations false
@@ -386,9 +391,8 @@ look_of() { # look_of FILE X Y...: W for a window pixel (red 150 or more), D for
     done
 }
 corner_checks() { # corner_checks <description> <screenshot> <round|square>: all four corners of the probe window
-    # Round corners start inside the margin: the visible window is the frame pulled in by 3 px.
+    # The corners are rounded right at the frame: no margin is cut inside it.
     local desc=$1 file=$2 want=$3 bad="" m=0
-    [ "$want" = round ] && m=$MARGIN
     local corner name cx cy sx sy tip diag inner
     for corner in "top-left 440 226 1 1" "top-right 839 226 -1 1" "bottom-left 440 525 1 -1" "bottom-right 839 525 -1 -1"; do
         read -r name cx cy sx sy <<<"$corner"
@@ -413,18 +417,19 @@ ev "$ENABLE" >/dev/null
 take_shot /tmp/look-on.png >/dev/null
 corner_checks "with SnapTile all four corners are cut round" /tmp/look-on.png round
 [ "$(red_at /tmp/look-on.png 640 376)" = 204 ] && pass "the middle of the window is untouched" || fail "the middle of the window is untouched"
-# The frame is x 440..839, y 226..525. The margin clears 3 px inside it on every side, so the
-# last full pixel of each straight edge is 3 px in and the 3 px outside that are the desktop.
-edges=$(for xy in "640 229" "443 376" "836 376" "640 522"; do red_at /tmp/look-on.png $xy; done | tr '\n' ' ')
-[ "$edges" = "204 204 204 204 " ] && pass "the straight edges stay full right up to the margin" || fail "the straight edges stay full right up to the margin (got $edges)"
-margin=$(look_of /tmp/look-on.png 640 226 640 228 440 376 442 376 837 376 839 376 640 523 640 525)
-[ "$margin" = DDDDDDDD ] && pass "the 3 px margin inside the frame shows the desktop on all four sides" || fail "the 3 px margin inside the frame shows the desktop on all four sides (got $margin, want DDDDDDDD)"
+# The frame is x 440..839, y 226..525. Nothing inside it is hidden: an application that draws
+# right up to its frame (a terminal, say) must not lose its outermost pixels. The pixels just
+# outside it show the desktop.
+edges=$(for xy in "640 226" "440 376" "839 376" "640 525"; do red_at /tmp/look-on.png $xy; done | tr '\n' ' ')
+[ "$edges" = "204 204 204 204 " ] && pass "the straight edges stay full right up to the frame: nothing is hidden inside it" || fail "the straight edges stay full right up to the frame (got $edges)"
+outside=$(look_of /tmp/look-on.png 640 225 439 376 840 376 640 526)
+[ "$outside" = DDDD ] && pass "just outside the frame on all four sides shows the desktop" || fail "just outside the frame on all four sides (got $outside, want DDDD)"
 check "one effect on the window" 1 "$EFFECTS"
 ev "$DISABLE" >/dev/null
 check "disabling removes the effect from the window" 0 "$EFFECTS"
 take_shot /tmp/look-off2.png >/dev/null
 corner_checks "after disabling the corners are square again" /tmp/look-off2.png square
-[ "$(red_at /tmp/look-off2.png 441 376)" = 204 ] && [ "$(red_at /tmp/look-off2.png 640 226)" = 204 ] && pass "after disabling the margin is gone: the window is full up to its frame" || fail "after disabling the margin is gone: the window is full up to its frame"
+[ "$(red_at /tmp/look-off2.png 441 376)" = 204 ] && [ "$(red_at /tmp/look-off2.png 640 226)" = 204 ] && pass "after disabling the window is still full up to its frame" || fail "after disabling the window is still full up to its frame"
 ev "$ENABLE" >/dev/null
 
 echo "Window look: what it leaves alone"
@@ -470,7 +475,7 @@ FIRST_RECT=$RECT
 RECT=${RECT//probe-window/probe-second} # the drag helpers now work on window 2
 snap "right half (window 2)" 1276 360 640,32,640,688
 RECT=$FIRST_RECT
-check "the two windows touch: their frames are exactly the two halves" '"[[1,0,32,640,688],[2,640,32,640,688]]"' "$FRAMES"
+check "the two windows are made smaller by the margin: their frames are the two halves pulled in" '"[[1,3,35,634,682],[2,643,35,634,682]]"' "$FRAMES"
 take_shot /tmp/pair.png >/dev/null
 across=$(for x in 2 3 636 637 642 643 1276 1277; do look_of /tmp/pair.png $x 500; done)
 [ "$across" = DWWDDWWD ] \
@@ -488,7 +493,7 @@ drag_to 700 300
 button RELEASED
 RECT=$FIRST_RECT
 DROPPED='(() => { const frame = n => global.get_window_actors().map(a => a.meta_window).find(w => w.title === n).get_frame_rect(); const one = frame("probe-window"), two = frame("probe-second"); return JSON.stringify([[one.x, one.y, one.width, one.height], two.width, two.height, two.x < one.x + one.width, two.x <= 700 && 700 < two.x + two.width && two.y <= 300 && 300 < two.y + two.height]); })()'
-check "a window dropped over another one: its earlier size, over the other window, under the pointer, nothing pushes it away" '"[[0,32,640,688],400,300,true,true]"' "$DROPPED"
+check "a window dropped over another one: its earlier size, over the other window, under the pointer, nothing pushes it away" '"[[3,35,634,682],400,300,true,true]"' "$DROPPED"
 kill $SECOND_PID 2>/dev/null
 kill $WINDOW_PID 2>/dev/null
 
@@ -519,7 +524,7 @@ inside=""
 for xy in "644 200" "700 36" "646 38" "660 50"; do same_as_before $xy && inside="$inside [$xy]"; done
 [ -z "$inside" ] && pass "preview: tinted just inside the edge and inside the corner" || fail "preview: these pixels show the bare desktop but should be tinted:$inside"
 button RELEASED
-check "the snapped window's frame is the Tile the preview marked" '"[640,32,640,344]"' "$RECT"
+check "the snapped window's frame is exactly where the preview was drawn" '"[643,35,634,338]"' "$RECT"
 kill $WINDOW_PID 2>/dev/null
 
 echo "Disabling SnapTile during and right after a drag:"
@@ -753,12 +758,12 @@ reset_places
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 place_window mem-a 50 100 520 360
 drag_title 250 114 -247 286 # the pointer ends in the left Edge zone
-check "a window dropped into a Tile sits in it" '"[0,32,640,688]"' "$(frame_of mem-a)"
+check "a window dropped into a Tile sits in it" '"[3,35,634,682]"' "$(frame_of mem-a)"
 check "the drop is saved at once: the Tile, its rectangle and the size from before tiling" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
 close_window mem-a
 check "closing a tiled window keeps the Tile" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "the application's next window reopens in the same Tile" '"[0,32,640,688]"' "$(frame_of mem-a)"
+check "the application's next window reopens in the same Tile" '"[3,35,634,682]"' "$(frame_of mem-a)"
 check "the reopened window is recorded as tiled in that Tile" '"left"' "$(tile_of mem-a)"
 close_window mem-a
 check "closing it again keeps the size from before tiling, not the application's default" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
@@ -771,7 +776,7 @@ stop_apps
 # A window that opened tiled and never had a free size: nothing is invented from the default.
 set_places '{"org.snaptile.MemA": {frame: {x: 640, y: 32, width: 640, height: 688}, tile: "right"}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "a Tile remembered without an earlier size still reopens in the Tile" '"[640,32,640,688]"' "$(frame_of mem-a)"
+check "a Tile remembered without an earlier size still reopens in the Tile" '"[643,35,634,682]"' "$(frame_of mem-a)"
 close_window mem-a
 check "closing it keeps the size the window opened with as the size from before tiling" '"org.snaptile.MemA=right 640,32,640,688 400x300"' "$KINDS"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
@@ -786,7 +791,7 @@ close_window mem-a
 check "a window that opened maximised invents no size from it" '"org.snaptile.MemA=right 640,32,640,688 -"' "$KINDS"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
 drag_title 900 46 -300 250
-check "dragged out, a window that never had a free size keeps its own size" '"640x688"' "$(size_of mem-a)"
+check "dragged out, a window that never had a free size keeps its own size" '"634x682"' "$(size_of mem-a)"
 stop_apps
 
 # An application that resizes its new window itself (Electron restoring its own size): the
@@ -811,7 +816,7 @@ reload_extension
 check "a restart does not lose the Tile or the size from before tiling" '"org.snaptile.MemA=left 0,32,640,688 520x360"' "$KINDS"
 drag_title 300 46 400 250
 check "dragged out after restarts, the window gets the application's free size back" '"520x360"' "$(size_of mem-a)"
-check "that free size is what is remembered, not the size of the Tile" '"org.snaptile.MemA=free 456,288,520,360 -"' "$KINDS"
+check "that free size is what is remembered, not the size of the Tile" '"org.snaptile.MemA=free 456,290,520,360 -"' "$KINDS"
 stop_apps
 
 # A window that comes out of a Tile and goes into another Tile did not have its size now before:
@@ -826,11 +831,11 @@ reset_places
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 place_window mem-a 50 100 400 300
 drag_title 250 114 390 -111 # the pointer ends in the top Edge zone: the whole-screen Tile
-check "a window dropped into the whole-screen Tile fills the work area" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+check "a window dropped into the whole-screen Tile fills the work area" '"[3,35,1274,682]"' "$(frame_of mem-a)"
 close_window mem-a
 check "closing it in the whole-screen Tile remembers that Tile" '"org.snaptile.MemA=full 0,32,1280,688 400x300"' "$KINDS"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "it reopens in the whole-screen Tile" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+check "it reopens in the whole-screen Tile" '"[3,35,1274,682]"' "$(frame_of mem-a)"
 check "the whole-screen Tile is a Tile, not the maximised state" '"false|full"' "[$(titled mem-a)[0].is_maximized(), $(tile_of mem-a)].join('|')"
 stop_apps
 
@@ -872,22 +877,22 @@ start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 drag_title 640 240 0 40
 drag_title 450 280 -447 120 # into the left Edge zone: the left half
 drag_title 642 400 100 0 # the right edge of the Tile
-check "resizing a window out of a Tile keeps the free size" '"org.snaptile.MemA=0,32,400,300"' "$PLACES"
+check "resizing a window out of a Tile keeps the free size" '"org.snaptile.MemA=3,35,400,300"' "$PLACES"
 stop_apps
 
 echo "  Window memory: a Tile is reached also by windows that fight it, and by those that do not fit"
 set_places "$LEFT_TILE"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MAXIMIZE=1
-check "SnapTile's Tile wins against an application that maximises itself" '"false|[0,32,640,688]"' "[$(titled mem-a)[0].is_maximized(), $(frame_of mem-a)].join('|')"
+check "SnapTile's Tile wins against an application that maximises itself" '"false|[3,35,634,682]"' "[$(titled mem-a)[0].is_maximized(), $(frame_of mem-a)].join('|')"
 check "that window is recorded as tiled, with the remembered earlier size" '"left"' "$(tile_of mem-a)"
 stop_apps
 
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_MIN=900x500
-check "a window with a minimum size larger than its Tile is hung on the Tile's top left corner" '"[0,32,900,688]"' "$(frame_of mem-a)"
+check "a window with a minimum size larger than its Tile is hung on the Tile's top left corner" '"[3,35,900,682]"' "$(frame_of mem-a)"
 stop_apps
 
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_SECOND=1
-check "two windows opened together: exactly one is put into the Tile" 1 "[$(frame_of mem-a), $(frame_of mem-a-2)].filter(f => f === '[0,32,640,688]').length"
+check "two windows opened together: exactly one is put into the Tile" 1 "[$(frame_of mem-a), $(frame_of mem-a-2)].filter(f => f === '[3,35,634,682]').length"
 stop_apps
 
 echo "  Window memory: a second window of an application opens offset from the first"
@@ -905,8 +910,8 @@ stop_apps
 
 set_places "$LEFT_TILE"
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1
-check "the first window opens in the remembered Tile" '"[0,32,640,688]|left"' "[$(frame_of mem-a), $(tile_of mem-a)].join('|')"
-check "the second window opens free with the size from before tiling, offset from the Tile's corner" '"[38,70,520,360]|no Tile"' "[$(frame_of mem-a-2), $(tile_of mem-a-2) ?? 'no Tile'].join('|')"
+check "the first window opens in the remembered Tile" '"[3,35,634,682]|left"' "[$(frame_of mem-a), $(tile_of mem-a)].join('|')"
+check "the second window opens free with the size from before tiling, offset from the Tile's corner" '"[41,73,520,360]|no Tile"' "[$(frame_of mem-a-2), $(tile_of mem-a-2) ?? 'no Tile'].join('|')"
 stop_apps
 
 set_places '{"org.snaptile.MemA": {frame: {x: 0, y: 0, width: 3000, height: 2000}}}'
@@ -1091,7 +1096,7 @@ check "a save that cannot name the monitor keeps the monitor remembered before" 
 stop_apps
 set_places '{"org.snaptile.MemA": {frame: {x: 1280, y: 0, width: 512, height: 768}, tile: "left", monitor: "'"$SECOND_ID"'"}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "a Tile of the second monitor reopens in that Tile of the second monitor" '"[1280,0,512,768]"' "$(frame_of mem-a)"
+check "a Tile of the second monitor reopens in that Tile of the second monitor" '"[1283,3,506,762]"' "$(frame_of mem-a)"
 stop_apps
 
 kill $SHELL_PID 2>/dev/null
@@ -1112,7 +1117,7 @@ check "a remembered size larger than the remaining work area is shrunk to it" '"
 stop_apps
 set_places '{"org.snaptile.MemA": {frame: {x: 1280, y: 0, width: 512, height: 768}, tile: "left", monitor: "'"$SECOND_ID"'"}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "a Tile of the vanished monitor applies on the remaining monitor" '"[0,32,640,688]"' "$(frame_of mem-a)"
+check "a Tile of the vanished monitor applies on the remaining monitor" '"[3,35,634,682]"' "$(frame_of mem-a)"
 stop_apps
 gsettings set org.gnome.desktop.interface enable-animations true
 
