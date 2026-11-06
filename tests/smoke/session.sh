@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 226 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 230 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=226
+MAX_RUNTIME=230
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -356,9 +356,26 @@ for _ in $(seq 25); do # until it is maximised (at most 5 s)
 done
 press_ctrl $DOWN
 check "a maximised window goes into the middle third (it reports it cannot be resized)" '"[430,35,421,682]"' "$RECT"
+ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").maximize(), 1' >/dev/null
+for _ in $(seq 25); do # until it is maximised (at most 5 s)
+    [ "$(ev 'global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window").is_maximized()')" = true ] && break
+    sleep 0.2
+done
+check "a maximised window has no margin: it fills the work area" '"[0,32,1280,688]"' "$RECT"
+GNOME_HALF_TILE='(() => { const w = global.get_window_actors().map(a => a.meta_window).find(w => w.title === "probe-window"); return Main.extensionManager.lookup("'"$UUID"'").stateObj._tiledWindows.get(w.get_id())?.tile ?? null; })()'
 press_with $SUPER $LEFT # Super+Left: GNOME's own left half, which Mutter sees as maximised vertically
+await_true "$GNOME_HALF_TILE === 'left'"
+check "a window GNOME put into its left half is made SnapTile's left half, with the margin" '"[3,35,634,682]"' "$RECT"
+kill $WINDOW_PID 2>/dev/null
+start_probe
+press_with $SUPER $RIGHT
+await_true "$GNOME_HALF_TILE === 'right'"
+check "a window GNOME put into its right half is made SnapTile's right half, with the margin" '"[643,35,634,682]"' "$RECT"
+press_with $SUPER $LEFT # GNOME moves a window of ours from the right half on to the left one, as it would any other
+await_true "$GNOME_HALF_TILE === 'left'"
+check "GNOME's shortcut takes a window from SnapTile's right half to the left half, again with the margin" '"[3,35,634,682]"' "$RECT"
 press_ctrl $RIGHT
-check "a window put into GNOME's left half goes into the right third" '"[857,35,420,682]"' "$RECT"
+check "a window GNOME had put into its half goes into the right third" '"[857,35,420,682]"' "$RECT"
 kill $WINDOW_PID 2>/dev/null
 
 echo "Window that cannot get as small as the Tile (minimum 900x500):"
@@ -865,10 +882,10 @@ stop_apps
 reset_places
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
 press_with $SUPER $LEFT
-await_true "$(titled mem-a)[0].maximized_vertically"
+await_true "$(tile_of mem-a) === 'left'"
 check "a window put into GNOME's half does not make the half its opening size" '"org.snaptile.MemA=440,226,400,300"' "$PLACES"
 close_window mem-a
-check "closing it in the half keeps the free size" '"org.snaptile.MemA=0,32,400,300"' "$PLACES"
+check "closing it in GNOME's half remembers SnapTile's left Tile and keeps the free size" '"org.snaptile.MemA=left 0,32,640,688 400x300"' "$KINDS"
 stop_apps
 
 # Resizing a window that sits in a Tile is not a free resize.

@@ -75,10 +75,11 @@ manager.
 
 **GNOME half**:
 The left or right half of the screen that a window gets from GNOME's own shortcuts Super+Left
-and Super+Right (Mutter sees it as maximised in one direction only). Not a Tile. The Third
-shortcuts tile such a window anyway; making Window memory treat it like the left or right half
-Tile is planned.
-_Avoid_: Tile (reserved for SnapTile's 14 areas)
+and Super+Right (Mutter sees it as maximised in one direction only). SnapTile turns such a
+window at once into its own left or right half Tile, so it gets the Window margin and the
+Window memory like any tiled window (ADR 0017). Maximised windows stay as they are, without
+margin.
+_Avoid_: Tile (reserved for SnapTile's 14 areas) for the state GNOME puts the window in
 
 **GNOME edge tiling**:
 GNOME's built-in snapping of a dragged window to the left half, right half or whole screen.

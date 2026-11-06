@@ -22,7 +22,9 @@ frame shows where it will go, and on release the window snaps there.
   first. Dialogs are left alone. Switch it off, clear it, or clear it and close all windows in
   the extension's preferences (each asks first).
 - **Window look**: rounded corners and no shadow for tiled and floating windows alike, and a
-  small margin around tiled windows (they are made smaller by it, so nothing is hidden).
+  small margin around tiled windows (they are made smaller by it, so nothing is hidden). This
+  includes windows GNOME puts into the left or right half with Super+Left/Right; maximised
+  windows have no margin.
 
 ## Requirements
 

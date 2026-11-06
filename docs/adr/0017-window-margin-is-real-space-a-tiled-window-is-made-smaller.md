@@ -35,6 +35,25 @@ so a visual cut can never be correct.
 - "Is this window in a Tile" (after a restart of SnapTile, and for Free size, ADR 0016) compares
   the window with the Tile pulled in by the margin of its monitor.
 
+## Windows tiled by GNOME (added 2026-11-06, maintainer decision)
+
+The margin matters in tiling whoever tiled the window. A window that GNOME puts into the left
+or right half (Super+Left, Super+Right) fills the half with no gap, so SnapTile turns it into
+its own left or right half Tile at once (`gnomeHalves.js`): same margin, and window memory and
+the Third shortcuts treat it like any tiled window (this is also what the open issue about GNOME
+halves asked for in window memory). Maximised windows are **not** touched: maximised means the
+whole work area, with no margin (maintainer's call, to be revisited if wanted).
+
+- A half is told by GNOME's flag (maximised in one direction only) *and* by a frame that is
+  exactly Mutter's half (1 px slack). A frame a margin inside the half is SnapTile's own and is
+  not taken for a half: GNOME raises the flag before the window has its new size, and the old
+  frame would otherwise be taken for the new half, so the next Super+arrow would do nothing.
+- The conversion runs from an idle callback, not inside Mutter's own tiling handling.
+- Only the left and right halves exist in GNOME's shortcuts. GNOME's edge tiling by dragging
+  is replaced by SnapTile and must stay switched off.
+- Super+Left on a window that SnapTile tiled into the right half moves it to the left half,
+  as in GNOME itself.
+
 ## Consequences
 
 - Applications that only take sizes in whole steps (terminals) end up slightly smaller than
