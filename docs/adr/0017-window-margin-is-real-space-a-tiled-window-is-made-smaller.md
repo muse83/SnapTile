@@ -1,7 +1,8 @@
 # The Window margin is real empty space: a tiled window is made smaller by it
 
 Status: accepted (2026-11-06, maintainer decision). Replaces the part of ADR 0004 that made the
-margin a visual cut inside the window frame.
+margin a visual cut inside the window frame. The part that gives floating windows no margin is
+replaced by ADR 0018 (2026-11-26): a free window keeps the margin to the edges of the screen.
 
 ## Problem
 

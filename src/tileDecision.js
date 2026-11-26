@@ -195,6 +195,37 @@ export function anchoredOrigin(rect, size, workArea) {
 }
 
 /**
+ * The frame a free window must get to keep the Window margin to the edges of its work area
+ * (ADR 0018), or null if it keeps it already.
+ * @param {{x: number, y: number, width: number, height: number}} frame the window's frame
+ * @param {{x: number, y: number, width: number, height: number}} area the work area of its monitor
+ * @param {number} margin the Window margin of that monitor
+ */
+export function clearOfEdges(frame, area, margin) {
+    // One direction at a time. A side that reaches beyond the work area (the window is partly
+    // off the screen, or on the next monitor) is left where the user put it; only the sides
+    // inside are kept a margin away from the edge.
+    const fit = (start, length, areaStart, areaLength) => {
+        const low = areaStart + margin;
+        const high = areaStart + areaLength - margin;
+        const outLow = start < areaStart;
+        const outHigh = start + length > areaStart + areaLength;
+        if (outLow && outHigh)
+            return {start, length};
+        if (outLow)
+            return {start: Math.min(start, high - length), length};
+        if (outHigh)
+            return {start: Math.max(start, low), length};
+        const fitted = Math.min(length, high - low);
+        return {start: Math.max(low, Math.min(start, high - fitted)), length: fitted};
+    };
+    const col = fit(frame.x, frame.width, area.x, area.width);
+    const row = fit(frame.y, frame.height, area.y, area.height);
+    const result = {x: col.start, y: row.start, width: col.length, height: row.length};
+    return ['x', 'y', 'width', 'height'].every(side => result[side] === frame[side]) ? null : result;
+}
+
+/**
  * @param {object} input
  * @param {{x: number, y: number}} input.pointer pointer position in logical pixels
  * @param {Array<{x, y, width, height, widthMm, heightMm, workArea: {x, y, width, height}}>} input.monitors

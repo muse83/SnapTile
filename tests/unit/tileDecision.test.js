@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {TILES, anchoredOrigin, decideTile, insetRect, pixelsPerCm, tileOfFrame, tileRect} from '../../src/tileDecision.js';
+import {TILES, anchoredOrigin, clearOfEdges, decideTile, insetRect, pixelsPerCm, tileOfFrame, tileRect} from '../../src/tileDecision.js';
 
 // 1000 x 600 px on 250 x 150 mm: 40 px per cm, so 1 cm = 40 px and 3 cm = 120 px.
 // The work area leaves 30 px for a top bar.
@@ -389,4 +389,40 @@ test('a Tile of another monitor is not found on this one', () => {
     const other = {x: 1280, y: 0, width: 1024, height: 768};
     assert.equal(tileOfFrame(tileRect('left', other), AREA), null);
     assert.equal(tileOfFrame(tileRect('left', other), other), 'left');
+});
+
+// A free window keeps the Window margin to every edge of the work area it is inside of.
+// Work area 1000 x 570 from y 30 (top bar), margin 3.
+const FREE_AREA = MON.workArea;
+
+test('a free window touching the top bar moves down by the margin', () => {
+    assert.deepEqual(clearOfEdges({x: 200, y: 30, width: 400, height: 300}, FREE_AREA, 3),
+        {x: 200, y: 33, width: 400, height: 300});
+});
+
+test('a free window touching the bottom or right edge moves in by the margin', () => {
+    assert.deepEqual(clearOfEdges({x: 600, y: 300, width: 400, height: 300}, FREE_AREA, 3),
+        {x: 597, y: 297, width: 400, height: 300});
+});
+
+test('a free window filling the work area is made smaller by the margin on every side', () => {
+    assert.deepEqual(clearOfEdges({x: 0, y: 30, width: 1000, height: 570}, FREE_AREA, 3),
+        {x: 3, y: 33, width: 994, height: 564});
+});
+
+test('a window partly off the screen keeps the margin on the edges that are on the screen', () => {
+    // Off the left edge, touching the top bar: stays off the left edge, moves down.
+    assert.deepEqual(clearOfEdges({x: -180, y: 30, width: 400, height: 300}, FREE_AREA, 3),
+        {x: -180, y: 33, width: 400, height: 300});
+    // Off the bottom edge, touching the right edge: stays off the bottom edge, moves left.
+    assert.deepEqual(clearOfEdges({x: 600, y: 450, width: 400, height: 300}, FREE_AREA, 3),
+        {x: 597, y: 450, width: 400, height: 300});
+});
+
+test('a window that keeps the margin already needs no change', () => {
+    assert.equal(clearOfEdges({x: 3, y: 33, width: 994, height: 564}, FREE_AREA, 3), null);
+    assert.equal(clearOfEdges({x: 200, y: 100, width: 400, height: 300}, FREE_AREA, 3), null);
+    // An application that refused to get smaller: hung at the margin, it reaches beyond the
+    // right edge and is left there, so SnapTile does not ask again and again.
+    assert.equal(clearOfEdges({x: 3, y: 100, width: 1100, height: 300}, FREE_AREA, 3), null);
 });

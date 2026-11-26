@@ -5,10 +5,10 @@ set -u
 SHELL_LOG=/tmp/smoke-shell.log
 FAILS=0
 
-# Maximum runtime of the whole run in seconds (see CLAUDE.md): 230 now, one more for every new
+# Maximum runtime of the whole run in seconds (see CLAUDE.md): 231 now, one more for every new
 # check. The run fails when it takes longer. A single check has no limit of its own; each one
 # prints how long it took since the check before it, so slow spots can be found and sped up.
-MAX_RUNTIME=230
+MAX_RUNTIME=231
 START=$(date +%s.%N)
 LAST=$START
 took() { local now; now=$(date +%s.%N); TOOK=$(awk -v a="$now" -v b="$LAST" 'BEGIN { printf "%.1f", a - b }'); LAST=$now; }
@@ -235,6 +235,13 @@ snap_merged() { # snap_merged <description> <pointer x of the first third> <of t
 }
 
 start_probe
+# A free window keeps the margin too (ADR 0018): put against the top bar and partly off the left
+# edge, it moves down by the margin and stays where it is on the left.
+resize_window -180 32 400 300
+await_settled probe-window
+check "a free window against the top bar gets the margin, also when it is partly off the screen" '"[-180,35,400,300]"' "$RECT"
+resize_window 440 226 400 300
+await_settled probe-window
 # The headless monitor is 1280x720 with a 32 px top bar; it reports no millimetres, so the
 # zones are 1 cm = 38 px deep at the 96 DPI fallback. Pointers sit well inside their zone.
 snap "top-left quarter"     3    3 0,32,640,344
@@ -716,7 +723,7 @@ stop_apps
 
 set_places '{"org.snaptile.MemA": {frame: {x: 0, y: 0, width: 3000, height: 2000}}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "a remembered size larger than the work area is shrunk to it" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+check "a remembered size larger than the work area is shrunk to it, inside the margin" '"[3,35,1274,682]"' "$(frame_of mem-a)"
 stop_apps
 
 set_places "$MEM_A"
@@ -933,7 +940,7 @@ stop_apps
 
 set_places '{"org.snaptile.MemA": {frame: {x: 0, y: 0, width: 3000, height: 2000}}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA PROBE_LATER=1
-check "a second window with a remembered size larger than the work area is shrunk to it" '"[0,32,1280,688]|[0,32,1280,688]"' "[$(frame_of mem-a), $(frame_of mem-a-2)].join('|')"
+check "a second window with a remembered size larger than the work area is shrunk to it, inside the margin" '"[3,35,1274,682]|[3,35,1274,682]"' "[$(frame_of mem-a), $(frame_of mem-a-2)].join('|')"
 stop_apps
 
 set_places "$MEM_A"
@@ -1126,11 +1133,11 @@ check "the shell sees only the first monitor now" '"[[0,0,1280,720]]"' \
     'JSON.stringify(Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]))'
 set_places '{"org.snaptile.MemA": {frame: {x: 1380, y: 100, width: 500, height: 400}, monitor: "'"$SECOND_ID"'", offset: {x: 100, y: 100}}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "with the second monitor gone, the window opens on the remaining one, inside its work area" '"[780,100,500,400]"' "$(frame_of mem-a)"
+check "with the second monitor gone, the window opens on the remaining one, inside its work area and margin" '"[777,100,500,400]"' "$(frame_of mem-a)"
 stop_apps
 set_places '{"org.snaptile.MemA": {frame: {x: 1300, y: 10, width: 1600, height: 900}, monitor: "'"$SECOND_ID"'", offset: {x: 20, y: 10}}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA
-check "a remembered size larger than the remaining work area is shrunk to it" '"[0,32,1280,688]"' "$(frame_of mem-a)"
+check "a remembered size larger than the remaining work area is shrunk to it, inside the margin" '"[3,35,1274,682]"' "$(frame_of mem-a)"
 stop_apps
 set_places '{"org.snaptile.MemA": {frame: {x: 1280, y: 0, width: 512, height: 768}, tile: "left", monitor: "'"$SECOND_ID"'"}}'
 start_app mem-a PROBE_APP_ID=org.snaptile.MemA

@@ -9,7 +9,7 @@ import {CornerEffect} from './cornerEffect.js';
 const EFFECT_NAME = 'snaptile-corners';
 
 // Application windows and dialogs only: menus, tooltips and the GNOME interface are other types.
-const LOOK_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowType.MODAL_DIALOG];
+export const LOOK_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowType.MODAL_DIALOG];
 
 /**
  * Gives every application window and dialog the Window look, tiled or floating: the rounded

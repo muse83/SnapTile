@@ -43,9 +43,11 @@ export class WindowMemory {
      * @param dragSnap the DragSnap, whose snap path puts a reopened window into its Tile
      * @param monitorSizes the MonitorSizes, to turn 1 cm into pixels for a second window and to
      *   tell the monitors apart
+     * @param freeMargin the FreeMargin, which puts a free window at its place inside the margin
      */
-    constructor(settings, tiledWindows, dragSnap, monitorSizes) {
+    constructor(settings, tiledWindows, dragSnap, monitorSizes, freeMargin) {
         this._settings = settings;
+        this._freeMargin = freeMargin;
         this._monitorSizes = monitorSizes;
         this._tiledWindows = tiledWindows;
         this._dragSnap = dragSnap;
@@ -472,8 +474,7 @@ export class WindowMemory {
     _put(window, placement) {
         switch (placement.kind) {
         case 'free':
-            window.move_resize_frame(true, placement.rect.x, placement.rect.y,
-                placement.rect.width, placement.rect.height);
+            this._freeMargin.place(window, placement.rect);
             break;
         case 'tile':
             this._dragSnap.snapWindow(window, placement, placement.sizeBefore);
